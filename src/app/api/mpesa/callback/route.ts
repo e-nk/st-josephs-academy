@@ -72,6 +72,21 @@ export async function POST(request: NextRequest) {
     const phoneNumber = paymentData.PhoneNumber?.toString() || ''
     const transactionDate = paymentData.TransactionDate?.toString() || ''
     
+		// Parse M-Pesa date format (YYYYMMDDHHmmss) to proper Date
+		let parsedDate = new Date()
+		if (transactionDate && transactionDate.length >= 14) {
+			const year = transactionDate.substring(0, 4)
+			const month = transactionDate.substring(4, 6)
+			const day = transactionDate.substring(6, 8)
+			const hour = transactionDate.substring(8, 10)
+			const minute = transactionDate.substring(10, 12)
+			const second = transactionDate.substring(12, 14)
+			
+			parsedDate = new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}Z`)
+			console.log('Parsed transaction date:', parsedDate.toISOString())
+		} else {
+			console.log('Using current date for transaction date')
+		}
     // For STK Push, we need to find the student using the CheckoutRequestID
     // because AccountReference might not be in the callback
     const admissionNumber = await findAdmissionNumberByCheckoutRequest(checkoutRequestID)
@@ -89,14 +104,14 @@ export async function POST(request: NextRequest) {
     console.log('Processing payment:', { transactionId, amount, admissionNumber, phoneNumber })
 
     // Process the payment
-    const result = await processPayment({
-      transactionId,
-      amount,
-      admissionNumber,
-      phoneNumber,
-      transactionDate,
-      checkoutRequestID
-    })
+		const result = await processPayment({
+			transactionId,
+			amount,
+			admissionNumber,
+			phoneNumber,
+			transactionDate: parsedDate.toISOString(), // Pass the proper ISO string
+			checkoutRequestID
+		})
 
     return NextResponse.json(result)
 
@@ -136,7 +151,7 @@ interface PaymentData {
   amount: number
   admissionNumber: string
   phoneNumber: string
-  transactionDate: string
+  transactionDate: string // This will now be a proper ISO string
   checkoutRequestID?: string
 }
 
@@ -190,7 +205,7 @@ async function processPayment(data: PaymentData) {
           data: {
             transactionId: data.transactionId, // Update with M-Pesa receipt number
             status: 'CONFIRMED',
-            paidAt: data.transactionDate ? new Date(data.transactionDate) : new Date(),
+            paidAt: new Date(data.transactionDate), // Now this will be a valid date
             confirmedAt: new Date(),
           }
         })
@@ -204,7 +219,7 @@ async function processPayment(data: PaymentData) {
             transactionId: data.transactionId, // Use M-Pesa receipt number
             referenceNumber: data.admissionNumber,
             status: 'CONFIRMED',
-            paidAt: data.transactionDate ? new Date(data.transactionDate) : new Date(),
+            paidAt: new Date(data.transactionDate), // Now this will be a valid date
             confirmedAt: new Date(),
           }
         })
