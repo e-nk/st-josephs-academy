@@ -4,6 +4,7 @@ import { useSession, signOut } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { useRouter, usePathname } from 'next/navigation'
 import { useEffect } from 'react'
+import Link from 'next/link'
 
 export default function AdminLayout({
   children,
@@ -48,6 +49,13 @@ export default function AdminLayout({
     )
   }
 
+  const navigation = [
+    { name: 'Dashboard', href: '/admin', current: pathname === '/admin' },
+    { name: 'Students', href: '/admin/students', current: pathname === '/admin/students' },
+    { name: 'Fee Structure', href: '/admin/fees', current: pathname === '/admin/fees' },
+    { name: 'Payments', href: '/admin/payments', current: pathname === '/admin/payments' },
+  ]
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -69,6 +77,23 @@ export default function AdminLayout({
               Sign Out
             </Button>
           </div>
+          
+          {/* Navigation */}
+          <nav className="flex space-x-8 pb-4">
+            {navigation.map((item) => (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={`text-sm font-medium transition-colors hover:text-blue-600 ${
+                  item.current
+                    ? 'text-blue-600 border-b-2 border-blue-600 pb-1'
+                    : 'text-gray-500'
+                }`}
+              >
+                {item.name}
+              </Link>
+            ))}
+          </nav>
         </div>
       </header>
 
