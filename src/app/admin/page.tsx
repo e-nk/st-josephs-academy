@@ -308,12 +308,14 @@ export default function AdminDashboard() {
             </Card>
           </Link>
           
-          <Card className="p-4 hover:bg-gray-50 cursor-pointer transition-colors">
-            <div className="text-center space-y-2">
-              <h3 className="font-semibold">Set Fee Structure</h3>
-              <p className="text-sm text-muted-foreground">Configure fees for terms and years</p>
-            </div>
-          </Card>
+          <Link href="/admin/fees">
+						<Card className="p-4 hover:bg-gray-50 cursor-pointer transition-colors">
+							<div className="text-center space-y-2">
+								<h3 className="font-semibold">Set Fee Structure</h3>
+								<p className="text-sm text-muted-foreground">Configure fees for terms and years</p>
+							</div>
+						</Card>
+					</Link>
           
           <Card className="p-4 hover:bg-gray-50 cursor-pointer transition-colors">
             <div className="text-center space-y-2">

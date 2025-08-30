@@ -42,14 +42,14 @@ interface FormData {
 const initialFormData: FormData = {
   name: '',
   amount: '',
-  term: '',
+  term: 'annual',  // Changed from '' to 'annual'
   year: new Date().getFullYear().toString(),
   dueDate: '',
   isActive: true,
 }
 
 const terms = [
-  { value: '', label: 'Annual Fee' },
+  { value: 'annual', label: 'Annual Fee' },
   { value: '1', label: 'Term 1' },
   { value: '2', label: 'Term 2' },
   { value: '3', label: 'Term 3' },
@@ -66,17 +66,17 @@ export function FeeStructureForm({ open, onClose, feeStructure, onSuccess }: Fee
 
   useEffect(() => {
     if (feeStructure) {
-      setFormData({
-        name: feeStructure.name,
-        amount: feeStructure.amount.toString(),
-        term: feeStructure.term || '',
-        year: feeStructure.year.toString(),
-        dueDate: feeStructure.dueDate 
-          ? new Date(feeStructure.dueDate).toISOString().split('T')[0] 
-          : '',
-        isActive: feeStructure.isActive,
-      })
-    } else {
+		setFormData({
+			name: feeStructure.name,
+			amount: feeStructure.amount.toString(),
+			term: feeStructure.term || 'annual',  // Changed from '' to 'annual'
+			year: feeStructure.year.toString(),
+			dueDate: feeStructure.dueDate 
+				? new Date(feeStructure.dueDate).toISOString().split('T')[0] 
+				: '',
+			isActive: feeStructure.isActive,
+		})
+		} else {
       setFormData(initialFormData)
     }
     setErrors({})
@@ -130,13 +130,13 @@ export function FeeStructureForm({ open, onClose, feeStructure, onSuccess }: Fee
       const method = isEditing ? 'PUT' : 'POST'
       
       const submitData = {
-        name: formData.name.trim(),
-        amount: parseFloat(formData.amount),
-        term: formData.term || undefined,
-        year: parseInt(formData.year),
-        dueDate: formData.dueDate || undefined,
-        isActive: formData.isActive,
-      }
+			name: formData.name.trim(),
+			amount: parseFloat(formData.amount),
+			term: formData.term === 'annual' ? undefined : formData.term,  // Convert 'annual' back to undefined
+			year: parseInt(formData.year),
+			dueDate: formData.dueDate || undefined,
+			isActive: formData.isActive,
+		}
       
       const response = await fetch(url, {
         method,
@@ -175,15 +175,15 @@ export function FeeStructureForm({ open, onClose, feeStructure, onSuccess }: Fee
 
   // Generate suggested fee names based on term and year
   const generateFeeName = () => {
-    const year = formData.year || currentYear.toString()
-    const term = formData.term
-    
-    if (term) {
-      return `Term ${term} ${year} Fees`
-    } else {
-      return `Annual Fees ${year}`
-    }
-  }
+  const year = formData.year || currentYear.toString()
+  const term = formData.term
+  
+		if (term && term !== 'annual') {  // Added check for 'annual'
+			return `Term ${term} ${year} Fees`
+		} else {
+			return `Annual Fees ${year}`
+		}
+	}
 
   const handleAutoFillName = () => {
     const suggestedName = generateFeeName()
