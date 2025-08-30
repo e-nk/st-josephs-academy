@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
-// import crypto from 'crypto-js'
 
 interface MpesaCallback {
   TransactionType: string
@@ -8,11 +7,11 @@ interface MpesaCallback {
   TransTime: string
   TransAmount: string
   BusinessShortCode: string
-  BillRefNumber: string // This will be the student's admission number
+  BillRefNumber: string
   InvoiceNumber?: string
   OrgAccountBalance?: string
   ThirdPartyTransID?: string
-  MSISDN: string // Phone number
+  MSISDN: string
   FirstName?: string
   MiddleName?: string
   LastName?: string
@@ -21,10 +20,11 @@ interface MpesaCallback {
 // POST - Handle M-Pesa callback
 export async function POST(request: NextRequest) {
   try {
-    console.log('M-Pesa callback received')
+    console.log('=== M-PESA CALLBACK RECEIVED ===')
+    console.log('Headers:', Object.fromEntries(request.headers.entries()))
     
     const body = await request.json()
-    console.log('Callback data:', JSON.stringify(body, null, 2))
+    console.log('Raw callback body:', JSON.stringify(body, null, 2))
 
     // M-Pesa sends the callback in a specific format
     const callbackData = body.Body?.stkCallback || body
@@ -37,9 +37,21 @@ export async function POST(request: NextRequest) {
     // Extract payment details
     const resultCode = callbackData.ResultCode
     const resultDesc = callbackData.ResultDesc
+    const checkoutRequestID = callbackData.CheckoutRequestID
+    
+    console.log('Payment result:', { resultCode, resultDesc, checkoutRequestID })
     
     if (resultCode !== 0) {
       console.log('Payment failed:', resultDesc)
+      
+      // Update the pending payment record to failed
+      if (checkoutRequestID) {
+        await prisma.payment.updateMany({
+          where: { transactionId: checkoutRequestID },
+          data: { status: 'FAILED' }
+        })
+      }
+      
       return NextResponse.json({ message: 'Payment failed', resultDesc })
     }
 
@@ -47,21 +59,30 @@ export async function POST(request: NextRequest) {
     const callbackMetadata = callbackData.CallbackMetadata?.Item || []
     const paymentData: any = {}
     
+    console.log('Callback metadata items:', callbackMetadata)
+    
     callbackMetadata.forEach((item: any) => {
       paymentData[item.Name] = item.Value
     })
+
+    console.log('Parsed payment data:', paymentData)
 
     const transactionId = paymentData.MpesaReceiptNumber
     const amount = parseFloat(paymentData.Amount || '0')
     const phoneNumber = paymentData.PhoneNumber?.toString() || ''
     const transactionDate = paymentData.TransactionDate?.toString() || ''
     
-    // The account number should be the student's admission number
-    // This comes from BillRefNumber or can be extracted from other fields
-    const admissionNumber = paymentData.AccountReference || body.BillRefNumber
+    // For STK Push, we need to find the student using the CheckoutRequestID
+    // because AccountReference might not be in the callback
+    const admissionNumber = await findAdmissionNumberByCheckoutRequest(checkoutRequestID)
     
     if (!transactionId || !amount || !admissionNumber) {
-      console.log('Missing required payment data')
+      console.log('Missing required payment data:', { 
+        transactionId, 
+        amount, 
+        admissionNumber, 
+        checkoutRequestID 
+      })
       return NextResponse.json({ error: 'Missing required payment data' }, { status: 400 })
     }
 
@@ -74,6 +95,7 @@ export async function POST(request: NextRequest) {
       admissionNumber,
       phoneNumber,
       transactionDate,
+      checkoutRequestID
     })
 
     return NextResponse.json(result)
@@ -84,25 +106,53 @@ export async function POST(request: NextRequest) {
   }
 }
 
+// Helper function to find admission number using CheckoutRequestID
+async function findAdmissionNumberByCheckoutRequest(checkoutRequestID: string): Promise<string | null> {
+  try {
+    // Find the pending payment record that was created during STK push
+    const pendingPayment = await prisma.payment.findFirst({
+      where: { transactionId: checkoutRequestID },
+      include: { student: true }
+    })
+
+    if (pendingPayment?.student) {
+      return pendingPayment.student.admissionNumber
+    }
+
+    // If not found, try to extract from referenceNumber
+    if (pendingPayment?.referenceNumber) {
+      return pendingPayment.referenceNumber
+    }
+
+    return null
+  } catch (error) {
+    console.error('Error finding admission number:', error)
+    return null
+  }
+}
+
 interface PaymentData {
   transactionId: string
   amount: number
   admissionNumber: string
   phoneNumber: string
   transactionDate: string
+  checkoutRequestID?: string
 }
 
 async function processPayment(data: PaymentData) {
   try {
-    // Check if payment already exists (prevent duplicate processing)
+    // Check if payment already processed with this M-Pesa receipt number
     const existingPayment = await prisma.payment.findFirst({
-			where: { transactionId: data.transactionId }
-		})
+      where: { 
+        OR: [
+          { transactionId: data.transactionId }, // M-Pesa receipt number
+          { transactionId: data.checkoutRequestID } // Checkout request ID
+        ]
+      }
+    })
 
-    if (existingPayment) {
-      console.log('Payment already processed:', data.transactionId)
-      return { message: 'Payment already processed' }
-    }
+    console.log('Existing payment check:', existingPayment?.id || 'None found')
 
     // Find student by admission number
     const student = await prisma.student.findUnique({
@@ -117,39 +167,48 @@ async function processPayment(data: PaymentData) {
     })
 
     if (!student) {
-			console.log('Student not found:', data.admissionNumber)
-			await prisma.payment.create({
-				data: {
-					studentId: '',
-					amount: data.amount,
-					paymentMethod: 'MPESA',
-					transactionId: data.transactionId,
-					referenceNumber: data.admissionNumber,
-					status: 'PENDING',
-					paidAt: data.transactionDate ? new Date(data.transactionDate) : new Date(), // Safe date parsing here too
-				}
-			})
-			
-			return { error: 'Student not found', requiresManualReview: true }
-		}
+      console.log('Student not found:', data.admissionNumber)
+      return { error: 'Student not found', requiresManualReview: true }
+    }
+
+    console.log('Student found:', student.firstName, student.lastName)
+    console.log('Outstanding assignments:', student.feeAssignments.length)
+
     // Calculate how to allocate the payment across outstanding fees
     const allocationResult = allocatePayment(data.amount, student.feeAssignments)
     
+    console.log('Payment allocation:', allocationResult)
+
     // Start transaction to ensure data consistency
     const result = await prisma.$transaction(async (tx) => {
-      // Create the payment record
-      const payment = await tx.payment.create({
-			data: {
-				studentId: student.id,
-				amount: data.amount,
-				paymentMethod: 'MPESA',
-				transactionId: data.transactionId,
-				referenceNumber: data.admissionNumber,
-				status: 'CONFIRMED',
-				paidAt: data.transactionDate ? new Date(data.transactionDate) : new Date(), // Safe date parsing
-				confirmedAt: new Date(),
-			}
-		})
+      // Update the existing pending payment or create new one
+      let payment
+      if (existingPayment && existingPayment.status === 'PENDING') {
+        // Update the existing pending payment
+        payment = await tx.payment.update({
+          where: { id: existingPayment.id },
+          data: {
+            transactionId: data.transactionId, // Update with M-Pesa receipt number
+            status: 'CONFIRMED',
+            paidAt: data.transactionDate ? new Date(data.transactionDate) : new Date(),
+            confirmedAt: new Date(),
+          }
+        })
+      } else {
+        // Create new payment record
+        payment = await tx.payment.create({
+          data: {
+            studentId: student.id,
+            amount: data.amount,
+            paymentMethod: 'MPESA',
+            transactionId: data.transactionId, // Use M-Pesa receipt number
+            referenceNumber: data.admissionNumber,
+            status: 'CONFIRMED',
+            paidAt: data.transactionDate ? new Date(data.transactionDate) : new Date(),
+            confirmedAt: new Date(),
+          }
+        })
+      }
 
       // Update fee assignments
       for (const allocation of allocationResult.allocations) {
@@ -171,12 +230,9 @@ async function processPayment(data: PaymentData) {
       }
     })
 
-    console.log('Payment processed successfully:', result)
-
-    // TODO: Send SMS notification to parent
-    // TODO: Send email receipt
+    console.log('Payment processed successfully:', result.payment.id)
     
-    // Calculate new balance for SMS
+    // Calculate new balance for response
     const totalBalance = student.feeAssignments.reduce((sum, assignment) => sum + Number(assignment.balance), 0) - result.totalAllocated
     
     return {
