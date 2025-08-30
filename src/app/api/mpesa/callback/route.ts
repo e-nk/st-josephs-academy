@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { smsService } from '@/lib/sms'
 
 interface MpesaCallback {
   TransactionType: string
@@ -246,10 +247,54 @@ async function processPayment(data: PaymentData) {
     })
 
     console.log('Payment processed successfully:', result.payment.id)
-    
-    // Calculate new balance for response
-    const totalBalance = student.feeAssignments.reduce((sum, assignment) => sum + Number(assignment.balance), 0) - result.totalAllocated
-    
+		
+				// Calculate new balance for response
+		const totalBalance = student.feeAssignments.reduce((sum, assignment) => sum + Number(assignment.balance), 0) - result.totalAllocated
+
+		
+		// Send SMS notification to student/parent
+		// Send SMS notification to parent
+		try {
+			const parentPhone = student.parentPhone
+			if (parentPhone) {
+				const newBalance = Math.max(0, totalBalance)
+				const smsMessage = smsService.generatePaymentConfirmationSMS(
+					`${student.firstName} ${student.lastName}`,
+					student.admissionNumber,
+					data.amount,
+					newBalance,
+					data.transactionId
+				)
+				
+				await smsService.sendSMS(parentPhone, smsMessage)
+				console.log('SMS sent to parent:', parentPhone)
+			}
+		} catch (smsError) {
+			console.error('Error sending SMS to parent:', smsError)
+			// Don't fail the payment if SMS fails
+		}
+
+		// Send notification to director (if director phone is configured)
+		try {
+			const directorPhone = process.env.DIRECTOR_PHONE
+			if (directorPhone) {
+				const directorMessage = smsService.generateDirectorNotificationSMS(
+					`${student.firstName} ${student.lastName}`,
+					student.admissionNumber,
+					data.amount,
+					'M-PESA',
+					data.transactionId
+				)
+				
+				await smsService.sendSMS(directorPhone, directorMessage)
+				console.log('SMS sent to director')
+			}
+		} catch (smsError) {
+			console.error('Error sending SMS to director:', smsError)
+			// Don't fail the payment if SMS fails
+		}
+
+
     return {
       message: 'Payment processed successfully',
       student: {
