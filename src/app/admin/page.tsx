@@ -2,6 +2,7 @@
 
 import { useSession } from 'next-auth/react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { SystemStatus } from '@/components/dashboard/system-status'
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 
@@ -10,6 +11,11 @@ interface DashboardStats {
   totalCollected: number
   totalOutstanding: number
   paymentsToday: number
+  paymentsThisMonth: {
+    count: number
+    amount: number
+  }
+  activeFeeStructures: number
   recentPayments: Array<{
     id: string
     amount: number
@@ -18,7 +24,7 @@ interface DashboardStats {
       admissionNumber: string
       firstName: string
       lastName: string
-    }
+    } | null
   }>
   recentStudents: Array<{
     id: string
@@ -27,6 +33,21 @@ interface DashboardStats {
     lastName: string
     class: string
     createdAt: string
+  }>
+  paymentMethodStats: Array<{
+    method: string
+    count: number
+    amount: number
+  }>
+  topPayingStudents: Array<{
+    student: {
+      id: string
+      admissionNumber: string
+      firstName: string
+      lastName: string
+      class: string
+    } | null
+    totalPaid: number
   }>
 }
 
@@ -53,6 +74,10 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchStats()
+    
+    // Refresh stats every 30 seconds for real-time updates
+    const interval = setInterval(fetchStats, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   const formatCurrency = (amount: number) => {
@@ -91,14 +116,20 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
-        <p className="text-muted-foreground">
-          Overview of your school's fee collection system
-        </p>
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+          <p className="text-muted-foreground">
+            Overview of your school's fee collection system
+          </p>
+        </div>
+        <div className="text-right text-sm text-muted-foreground">
+          <p>Last updated: {new Date().toLocaleTimeString()}</p>
+          <p>Auto-refreshes every 30 seconds</p>
+        </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Main Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -190,7 +221,7 @@ export default function AdminDashboard() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Today's Payments</CardTitle>
+            <CardTitle className="text-sm font-medium">This Month</CardTitle>
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 0 24 24"
@@ -205,19 +236,31 @@ export default function AdminDashboard() {
             </svg>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{stats?.paymentsToday || 0}</div>
+            <div className="text-2xl font-bold">
+              {formatCurrency(stats?.paymentsThisMonth.amount || 0)}
+            </div>
             <p className="text-xs text-muted-foreground">
-              {stats?.paymentsToday === 0
-                ? 'No payments today'
-                : 'Payments confirmed today'
-              }
+              {stats?.paymentsThisMonth.count || 0} payments this month
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Recent Activity */}
-      <div className="grid gap-4 md:grid-cols-2">
+      {/* System Status */}
+      {stats && (
+        <SystemStatus 
+          stats={{
+            totalStudents: stats.totalStudents,
+            activeFeeStructures: stats.activeFeeStructures,
+            paymentsToday: stats.paymentsToday,
+            totalOutstanding: stats.totalOutstanding,
+            paymentMethodStats: stats.paymentMethodStats
+          }} 
+        />
+      )}
+
+      {/* Activity Section */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {/* Recent Students */}
         <Card>
           <CardHeader>
@@ -268,10 +311,13 @@ export default function AdminDashboard() {
                   <div key={payment.id} className="flex items-center justify-between border-b pb-2 last:border-0">
                     <div>
                       <p className="font-medium">
-                        {payment.student.firstName} {payment.student.lastName}
+                        {payment.student ? 
+                          `${payment.student.firstName} ${payment.student.lastName}` : 
+                          'Unmatched Payment'
+                        }
                       </p>
                       <p className="text-sm text-muted-foreground">
-                        {payment.student.admissionNumber}
+                        {payment.student?.admissionNumber || 'Unknown'}
                       </p>
                     </div>
                     <div className="text-right">
@@ -288,6 +334,49 @@ export default function AdminDashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* Top Paying Students This Month */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Payers (This Month)</CardTitle>
+            <CardDescription>Students with highest payments</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!stats?.topPayingStudents || stats.topPayingStudents.length === 0 ? (
+              <p className="text-muted-foreground text-center py-4">
+                No payments this month yet
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {stats.topPayingStudents.map((payer, index) => (
+                  <div key={payer.student?.id || index} className="flex items-center justify-between border-b pb-2 last:border-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-muted-foreground">
+                        #{index + 1}
+                      </span>
+                      <div>
+                        <p className="font-medium">
+                          {payer.student ? 
+                            `${payer.student.firstName} ${payer.student.lastName}` : 
+                            'Unknown Student'
+                          }
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {payer.student?.admissionNumber} • {payer.student?.class}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-green-600">
+                        {formatCurrency(payer.totalPaid)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       {/* Quick Actions */}
@@ -295,34 +384,45 @@ export default function AdminDashboard() {
         <CardHeader>
           <CardTitle>Quick Actions</CardTitle>
           <CardDescription>
-            Get started with your fee management system
+            Common tasks and system management
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Link href="/admin/students">
             <Card className="p-4 hover:bg-gray-50 cursor-pointer transition-colors">
               <div className="text-center space-y-2">
                 <h3 className="font-semibold">Add Students</h3>
-                <p className="text-sm text-muted-foreground">Register new students to the system</p>
+                <p className="text-sm text-muted-foreground">Register new students</p>
               </div>
             </Card>
           </Link>
           
           <Link href="/admin/fees">
-						<Card className="p-4 hover:bg-gray-50 cursor-pointer transition-colors">
-							<div className="text-center space-y-2">
-								<h3 className="font-semibold">Set Fee Structure</h3>
-								<p className="text-sm text-muted-foreground">Configure fees for terms and years</p>
-							</div>
-						</Card>
-					</Link>
+            <Card className="p-4 hover:bg-gray-50 cursor-pointer transition-colors">
+              <div className="text-center space-y-2">
+                <h3 className="font-semibold">Set Fee Structure</h3>
+                <p className="text-sm text-muted-foreground">Configure school fees</p>
+              </div>
+            </Card>
+          </Link>
           
-          <Card className="p-4 hover:bg-gray-50 cursor-pointer transition-colors">
-            <div className="text-center space-y-2">
-              <h3 className="font-semibold">View Payments</h3>
-              <p className="text-sm text-muted-foreground">Check payment history and status</p>
-            </div>
-          </Card>
+          <Link href="/admin/payments">
+            <Card className="p-4 hover:bg-gray-50 cursor-pointer transition-colors">
+              <div className="text-center space-y-2">
+                <h3 className="font-semibold">View Payments</h3>
+                <p className="text-sm text-muted-foreground">Check payment history</p>
+              </div>
+            </Card>
+          </Link>
+
+          <Link href="/admin/test-payment">
+            <Card className="p-4 hover:bg-gray-50 cursor-pointer transition-colors">
+              <div className="text-center space-y-2">
+                <h3 className="font-semibold">Test Payment</h3>
+                <p className="text-sm text-muted-foreground">Simulate M-Pesa payments</p>
+              </div>
+            </Card>
+          </Link>
         </CardContent>
       </Card>
     </div>

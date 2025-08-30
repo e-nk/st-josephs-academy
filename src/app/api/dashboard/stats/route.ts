@@ -16,14 +16,21 @@ export async function GET(request: NextRequest) {
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)
 
+    // Get this month's date range
+    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+
     // Fetch all statistics in parallel
     const [
       totalStudents,
       totalCollected,
       totalOutstanding,
       paymentsToday,
+      paymentsThisMonth,
+      activeFeeStructures,
       recentPayments,
-      recentStudents
+      recentStudents,
+      paymentMethodStats,
+      topPayingStudents
     ] = await Promise.all([
       // Total students count
       prisma.student.count(),
@@ -49,6 +56,23 @@ export async function GET(request: NextRequest) {
             lt: tomorrow
           }
         }
+      }),
+
+      // This month's payments
+      prisma.payment.aggregate({
+        where: {
+          status: 'CONFIRMED',
+          confirmedAt: {
+            gte: firstDayOfMonth,
+          }
+        },
+        _sum: { amount: true },
+        _count: true
+      }),
+
+      // Active fee structures count
+      prisma.feeStructure.count({
+        where: { isActive: true }
       }),
       
       // Recent payments (last 5)
@@ -79,6 +103,52 @@ export async function GET(request: NextRequest) {
           class: true,
           createdAt: true
         }
+      }),
+
+      // Payment method statistics
+      prisma.payment.groupBy({
+        by: ['paymentMethod'],
+        where: { status: 'CONFIRMED' },
+        _sum: { amount: true },
+        _count: true
+      }),
+
+      // Top paying students this month
+      prisma.payment.groupBy({
+        by: ['studentId'],
+        where: {
+          status: 'CONFIRMED',
+          confirmedAt: {
+            gte: firstDayOfMonth,
+          },
+          studentId: { not: null }
+        },
+        _sum: { amount: true },
+        orderBy: { _sum: { amount: 'desc' } },
+        take: 5
+      }).then(async (groupedPayments) => {
+        // Get student details for top payers
+        const studentIds = groupedPayments
+          .filter(p => p.studentId)
+          .map(p => p.studentId!)
+        
+        if (studentIds.length === 0) return []
+        
+        const students = await prisma.student.findMany({
+          where: { id: { in: studentIds } },
+          select: {
+            id: true,
+            admissionNumber: true,
+            firstName: true,
+            lastName: true,
+            class: true
+          }
+        })
+
+        return groupedPayments.map(payment => ({
+          ...payment,
+          student: students.find(s => s.id === payment.studentId)
+        }))
       })
     ])
 
@@ -87,8 +157,22 @@ export async function GET(request: NextRequest) {
       totalCollected: Number(totalCollected._sum.amount || 0),
       totalOutstanding: Number(totalOutstanding._sum.balance || 0),
       paymentsToday,
+      paymentsThisMonth: {
+        count: paymentsThisMonth._count,
+        amount: Number(paymentsThisMonth._sum.amount || 0)
+      },
+      activeFeeStructures,
       recentPayments,
-      recentStudents
+      recentStudents,
+      paymentMethodStats: paymentMethodStats.map(stat => ({
+        method: stat.paymentMethod,
+        count: stat._count,
+        amount: Number(stat._sum.amount || 0)
+      })),
+      topPayingStudents: topPayingStudents.map(payer => ({
+        student: payer.student,
+        totalPaid: Number(payer._sum.amount || 0)
+      }))
     }
 
     return NextResponse.json({ stats })
