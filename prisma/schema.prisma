@@ -1,0 +1,102 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Student {
+  id                String   @id @default(cuid())
+  admissionNumber   String   @unique
+  firstName         String
+  lastName          String
+  middleName        String?
+  class             String
+  parentName        String
+  parentPhone       String
+  parentEmail       String?
+  dateOfBirth       DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  // Relationships
+  payments          Payment[]
+  feeAssignments    FeeAssignment[]
+  
+  @@map("students")
+}
+
+model FeeStructure {
+  id            String   @id @default(cuid())
+  name          String   // e.g., "Term 1 2024", "Annual Fees 2024"
+  amount        Decimal  @db.Decimal(10, 2)
+  term          String?  // "1", "2", "3" or null for annual
+  year          Int
+  dueDate       DateTime?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Relationships
+  feeAssignments FeeAssignment[]
+  
+  @@map("fee_structures")
+}
+
+model FeeAssignment {
+  id               String       @id @default(cuid())
+  studentId        String
+  feeStructureId   String
+  amountDue        Decimal      @db.Decimal(10, 2)
+  amountPaid       Decimal      @default(0) @db.Decimal(10, 2)
+  balance          Decimal      @default(0) @db.Decimal(10, 2)
+  status           PaymentStatus @default(PENDING)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  
+  // Relationships
+  student          Student      @relation(fields: [studentId], references: [id])
+  feeStructure     FeeStructure @relation(fields: [feeStructureId], references: [id])
+  
+  @@unique([studentId, feeStructureId])
+  @@map("fee_assignments")
+}
+
+model Payment {
+  id                   String        @id @default(cuid())
+  studentId            String
+  feeAssignmentId      String?
+  amount               Decimal       @db.Decimal(10, 2)
+  paymentMethod        PaymentMethod
+  transactionId        String?       // M-Pesa transaction ID
+  referenceNumber      String?       // Bank reference or M-Pesa ref
+  status               PaymentStatus @default(PENDING)
+  paidAt               DateTime?
+  confirmedAt          DateTime?
+  receiptSent          Boolean       @default(false)
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+  
+  // Relationships
+  student              Student       @relation(fields: [studentId], references: [id])
+  
+  @@map("payments")
+}
+
+enum PaymentMethod {
+  MPESA
+  BANK_TRANSFER
+  CASH
+}
+
+enum PaymentStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+  CANCELLED
+}
