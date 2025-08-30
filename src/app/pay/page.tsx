@@ -105,11 +105,13 @@ export default function PaymentPage() {
       const data = await response.json()
 
       if (response.ok) {
-        setSuccess(`Payment request sent to ${phoneNumber}. Please check your phone and enter your M-Pesa PIN to complete the payment.`)
-        setAmount('')
-      } else {
-        setError(data.error || 'Failed to initiate payment')
-      }
+				// Redirect to success page with payment details
+				const successUrl = `/pay/success?transactionId=${data.checkoutRequestId}&amount=${paymentAmount}&studentName=${encodeURIComponent(studentInfo.firstName + ' ' + studentInfo.lastName)}&balance=${studentInfo.totalOutstanding - paymentAmount}`
+				
+				window.location.href = successUrl
+			} else {
+				setError(data.error || 'Failed to initiate payment')
+			}
     } catch (error) {
       setError('Network error. Please try again.')
     } finally {
