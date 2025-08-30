@@ -11,11 +11,11 @@ interface MpesaPaymentRequest {
   Timestamp: string
   TransactionType: string
   Amount: number
-  PartyA: string // Phone number
-  PartyB: string // Business short code
+  PartyA: string
+  PartyB: string
   PhoneNumber: string
   CallBackURL: string
-  AccountReference: string // Student admission number
+  AccountReference: string
   TransactionDesc: string
 }
 
@@ -39,6 +39,17 @@ class MpesaService {
     this.callbackUrl = process.env.MPESA_CALLBACK_URL || ''
   }
 
+  private checkCredentials(): { valid: boolean, missing: string[] } {
+    const missing = []
+    if (!this.consumerKey) missing.push('MPESA_CONSUMER_KEY')
+    if (!this.consumerSecret) missing.push('MPESA_CONSUMER_SECRET')
+    if (!this.businessShortCode) missing.push('MPESA_BUSINESS_SHORT_CODE')
+    if (!this.passkey) missing.push('MPESA_PASSKEY')
+    if (!this.callbackUrl) missing.push('MPESA_CALLBACK_URL')
+    
+    return { valid: missing.length === 0, missing }
+  }
+
   private async getAccessToken(): Promise<string> {
     try {
       const auth = Buffer.from(`${this.consumerKey}:${this.consumerSecret}`).toString('base64')
@@ -51,8 +62,12 @@ class MpesaService {
       })
 
       return response.data.access_token
-    } catch (error) {
-      console.error('Error getting M-Pesa access token:', error)
+    } catch (error: any) {
+      console.error('Error getting M-Pesa access token:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      })
       throw new Error('Failed to get M-Pesa access token')
     }
   }
@@ -66,18 +81,29 @@ class MpesaService {
 
   async initiateSTKPush(phoneNumber: string, amount: number, admissionNumber: string): Promise<any> {
     try {
+      // Check if we have all required credentials
+      const credentialCheck = this.checkCredentials()
+      if (!credentialCheck.valid) {
+        throw new Error(`Missing M-Pesa credentials: ${credentialCheck.missing.join(', ')}`)
+      }
+
       const accessToken = await this.getAccessToken()
       const { password, timestamp } = this.generatePassword()
 
       // Format phone number (ensure it starts with 254)
-      const formattedPhone = phoneNumber.startsWith('254') ? phoneNumber : `254${phoneNumber.substring(1)}`
+      let formattedPhone = phoneNumber.replace(/\D/g, '') // Remove non-digits
+      if (formattedPhone.startsWith('0')) {
+        formattedPhone = '254' + formattedPhone.substring(1)
+      } else if (!formattedPhone.startsWith('254')) {
+        formattedPhone = '254' + formattedPhone
+      }
 
       const requestData: MpesaPaymentRequest = {
         BusinessShortCode: this.businessShortCode,
         Password: password,
         Timestamp: timestamp,
         TransactionType: 'CustomerPayBillOnline',
-        Amount: amount,
+        Amount: Math.round(amount), // Ensure it's an integer
         PartyA: formattedPhone,
         PartyB: this.businessShortCode,
         PhoneNumber: formattedPhone,
@@ -85,6 +111,11 @@ class MpesaService {
         AccountReference: admissionNumber,
         TransactionDesc: `Fee payment for student ${admissionNumber}`
       }
+
+      console.log('M-Pesa STK Push Request:', {
+        ...requestData,
+        Password: '[HIDDEN]'
+      })
 
       const response = await axios.post(
         `${this.baseUrl}/mpesa/stkpush/v1/processrequest`,
@@ -97,9 +128,20 @@ class MpesaService {
         }
       )
 
+      console.log('M-Pesa STK Push Response:', response.data)
       return response.data
-    } catch (error) {
-      console.error('Error initiating STK push:', error)
+      
+    } catch (error: any) {
+      console.error('Error initiating STK push:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      })
+      
+      // Return a more helpful error message
+      if (error.response?.data) {
+        throw new Error(error.response.data.errorMessage || error.response.data.message || 'M-Pesa API error')
+      }
       throw error
     }
   }
@@ -128,8 +170,12 @@ class MpesaService {
       )
 
       return response.data
-    } catch (error) {
-      console.error('Error querying payment status:', error)
+    } catch (error: any) {
+      console.error('Error querying payment status:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      })
       throw error
     }
   }
