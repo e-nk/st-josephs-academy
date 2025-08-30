@@ -69,12 +69,12 @@ model FeeAssignment {
 
 model Payment {
   id                   String        @id @default(cuid())
-  studentId            String
+  studentId            String?       // Make sure this has the ? (nullable)
   feeAssignmentId      String?
   amount               Decimal       @db.Decimal(10, 2)
   paymentMethod        PaymentMethod
-  transactionId        String?       // M-Pesa transaction ID
-  referenceNumber      String?       // Bank reference or M-Pesa ref
+  transactionId        String
+  referenceNumber      String?
   status               PaymentStatus @default(PENDING)
   paidAt               DateTime?
   confirmedAt          DateTime?
@@ -83,7 +83,7 @@ model Payment {
   updatedAt            DateTime      @updatedAt
   
   // Relationships
-  student              Student       @relation(fields: [studentId], references: [id])
+  student              Student?      @relation(fields: [studentId], references: [id])
   
   @@map("payments")
 }

@@ -50,11 +50,12 @@ export default function AdminLayout({
   }
 
   const navigation = [
-    { name: 'Dashboard', href: '/admin', current: pathname === '/admin' },
-    { name: 'Students', href: '/admin/students', current: pathname === '/admin/students' },
-    { name: 'Fee Structure', href: '/admin/fees', current: pathname === '/admin/fees' },
-    { name: 'Payments', href: '/admin/payments', current: pathname === '/admin/payments' },
-  ]
+		{ name: 'Dashboard', href: '/admin', current: pathname === '/admin' },
+		{ name: 'Students', href: '/admin/students', current: pathname === '/admin/students' },
+		{ name: 'Fee Structure', href: '/admin/fees', current: pathname === '/admin/fees' },
+		{ name: 'Payments', href: '/admin/payments', current: pathname === '/admin/payments' },
+		{ name: 'Test Payment', href: '/admin/test-payment', current: pathname === '/admin/test-payment' }, // Add this line
+	]
 
   return (
     <div className="min-h-screen bg-gray-50">
