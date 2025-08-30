@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
 import { smsService } from '@/lib/sms'
+import { emailService } from '@/lib/email'
 
 interface MpesaCallback {
   TransactionType: string
