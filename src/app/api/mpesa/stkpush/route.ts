@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { mpesaService } from '@/lib/mpesa'
 import { z } from 'zod'
@@ -11,14 +9,9 @@ const stkPushSchema = z.object({
   amount: z.number().positive('Amount must be greater than 0'),
 })
 
-// POST - Initiate STK push
+// POST - Initiate STK push (Public endpoint - no authentication required)
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions)
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
     const body = await request.json()
     const validatedData = stkPushSchema.parse(body)
 
@@ -89,7 +82,7 @@ export async function POST(request: NextRequest) {
 
     console.error('Error initiating STK push:', error)
     return NextResponse.json({ 
-      error: 'Failed to initiate payment request. Please try again.' 
+      error: error instanceof Error ? error.message : 'Failed to initiate payment request. Please try again.' 
     }, { status: 500 })
   }
 }
