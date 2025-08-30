@@ -25,6 +25,10 @@ export interface FeeStructure {
   isActive: boolean
   createdAt: Date
   updatedAt: Date
+  studentsAssigned?: number
+  totalExpected?: number
+  totalCollected?: number
+  totalOutstanding?: number
 }
 
 export interface Payment {
