@@ -4,11 +4,15 @@ import { useState } from 'react'
 import { StudentList } from '@/components/students/student-list'
 import { StudentForm } from '@/components/students/student-form'
 import { BulkImport } from '@/components/students/bulk-import'
+import { StudentManagement } from '@/components/students/student-management'
 import { Student } from '@/types'
+import { GraduationCap } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 export default function StudentsPage() {
   const [showForm, setShowForm] = useState(false)
   const [showBulkImport, setShowBulkImport] = useState(false)
+  const [showManagement, setShowManagement] = useState(false)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -26,6 +30,10 @@ export default function StudentsPage() {
     setShowBulkImport(true)
   }
 
+  const handleManagement = () => {
+    setShowManagement(true)
+  }
+
   const handleFormClose = () => {
     setShowForm(false)
     setEditingStudent(null)
@@ -33,6 +41,10 @@ export default function StudentsPage() {
 
   const handleBulkImportClose = () => {
     setShowBulkImport(false)
+  }
+
+  const handleManagementClose = () => {
+    setShowManagement(false)
   }
 
   const handleFormSuccess = () => {
@@ -43,13 +55,25 @@ export default function StudentsPage() {
     setRefreshKey(prev => prev + 1)
   }
 
+  const handleManagementSuccess = () => {
+    setRefreshKey(prev => prev + 1)
+  }
+
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Students</h2>
-        <p className="text-muted-foreground">
-          Manage student registrations and information
-        </p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-3xl font-bold tracking-tight">Students</h2>
+          <p className="text-muted-foreground">
+            Manage student registrations and information
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button onClick={handleManagement} variant="outline">
+            <GraduationCap className="h-4 w-4 mr-2" />
+            Manage Students
+          </Button>
+        </div>
       </div>
 
       <StudentList
@@ -70,6 +94,12 @@ export default function StudentsPage() {
         open={showBulkImport}
         onClose={handleBulkImportClose}
         onSuccess={handleBulkImportSuccess}
+      />
+
+      <StudentManagement
+        open={showManagement}
+        onClose={handleManagementClose}
+        onSuccess={handleManagementSuccess}
       />
     </div>
   )

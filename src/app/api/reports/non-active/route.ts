@@ -3,27 +3,37 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ className: string }> }
-) {
+export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
     if (!session) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { className } = await params
+    const { searchParams } = new URL(request.url)
+    const statusFilter = searchParams.get('status') // GRADUATED, TRANSFERRED, WITHDRAWN
+    const graduationYear = searchParams.get('graduationYear')
+
+    const where: any = {
+      status: { not: 'ACTIVE' } // All non-active students
+    }
+
+    if (statusFilter) {
+      where.status = statusFilter
+    }
+
+    if (graduationYear) {
+      where.graduationYear = parseInt(graduationYear)
+    }
 
     const students = await prisma.student.findMany({
-      where: { class: decodeURIComponent(className), status: 'ACTIVE'  },
+      where,
       include: {
         feeAssignments: {
           include: {
             feeStructure: {
               select: {
                 name: true,
-                amount: true,
                 term: true,
                 year: true,
                 dueDate: true
@@ -37,13 +47,14 @@ export async function GET(
         }
       },
       orderBy: [
-        { status: 'asc' }, // Show ACTIVE first, then others
-        { lastName: 'asc' },
-        { firstName: 'asc' }
+        { graduationYear: 'desc' }, // Most recent first
+        { status: 'asc' }, // Then by status
+        { class: 'asc' }, // Then by last class
+        { lastName: 'asc' }
       ]
     })
 
-    const classReport = students.map(student => {
+    const nonActiveReport = students.map(student => {
       const totalDue = student.feeAssignments.reduce((sum, assignment) => sum + Number(assignment.amountDue), 0)
       const totalPaid = student.feeAssignments.reduce((sum, assignment) => sum + Number(assignment.amountPaid), 0)
       const totalBalance = student.feeAssignments.reduce((sum, assignment) => sum + Number(assignment.balance), 0)
@@ -54,8 +65,8 @@ export async function GET(
         firstName: student.firstName,
         lastName: student.lastName,
         middleName: student.middleName,
-        class: student.class,
-        status: student.status, // Include student status
+        lastClass: student.class, // Their final class
+        status: student.status,
         graduationYear: student.graduationYear,
         currentAcademicYear: student.currentAcademicYear,
         notes: student.notes,
@@ -67,6 +78,7 @@ export async function GET(
         totalBalance,
         paymentStatus: totalBalance === 0 ? 'PAID_FULL' : totalBalance < totalDue ? 'PARTIAL' : 'UNPAID',
         lastPaymentDate: student.payments[0]?.confirmedAt || null,
+        updatedAt: student.updatedAt, // When status was last changed
         feeBreakdown: student.feeAssignments.map(assignment => ({
           feeName: assignment.feeStructure.name,
           amountDue: Number(assignment.amountDue),
@@ -75,41 +87,39 @@ export async function GET(
           term: assignment.feeStructure.term,
           year: assignment.feeStructure.year,
           dueDate: assignment.feeStructure.dueDate
-        })),
-        paymentHistory: student.payments.map(payment => ({
-          id: payment.id,
-          amount: Number(payment.amount),
-          transactionId: payment.transactionId,
-          paymentMethod: payment.paymentMethod,
-          paidAt: payment.paidAt,
-          confirmedAt: payment.confirmedAt
         }))
       }
     })
 
-    // Update summary to include status breakdown
+    // Get available graduation years for filtering
+    const graduationYears = await prisma.student.findMany({
+      where: { 
+        status: { not: 'ACTIVE' },
+        graduationYear: { not: null }
+      },
+      select: { graduationYear: true },
+      distinct: ['graduationYear'],
+      orderBy: { graduationYear: 'desc' }
+    })
+
     const summary = {
-      totalStudents: students.length,
-      activeStudents: classReport.filter(s => s.status === 'ACTIVE').length,
-      graduatedStudents: classReport.filter(s => s.status === 'GRADUATED').length,
-      transferredStudents: classReport.filter(s => s.status === 'TRANSFERRED').length,
-      withdrawnStudents: classReport.filter(s => s.status === 'WITHDRAWN').length,
-      paidInFull: classReport.filter(s => s.paymentStatus === 'PAID_FULL').length,
-      partialPayment: classReport.filter(s => s.paymentStatus === 'PARTIAL').length,
-      unpaid: classReport.filter(s => s.paymentStatus === 'UNPAID').length,
-      totalDue: classReport.reduce((sum, s) => sum + s.totalDue, 0),
-      totalCollected: classReport.reduce((sum, s) => sum + s.totalPaid, 0),
-      totalOutstanding: classReport.reduce((sum, s) => sum + s.totalBalance, 0)
+      totalNonActiveStudents: students.length,
+      graduatedCount: nonActiveReport.filter(s => s.status === 'GRADUATED').length,
+      transferredCount: nonActiveReport.filter(s => s.status === 'TRANSFERRED').length,
+      withdrawnCount: nonActiveReport.filter(s => s.status === 'WITHDRAWN').length,
+      studentsWithArrears: nonActiveReport.filter(s => s.totalBalance > 0).length,
+      totalOutstandingAmount: nonActiveReport.reduce((sum, s) => sum + s.totalBalance, 0),
+      fullyPaidCount: nonActiveReport.filter(s => s.totalBalance === 0).length,
+      availableGraduationYears: graduationYears.map(y => y.graduationYear).filter(Boolean)
     }
 
     return NextResponse.json({
-      className: decodeURIComponent(className),
       summary,
-      students: classReport
+      students: nonActiveReport
     })
 
   } catch (error) {
-    console.error('Error generating class report:', error)
+    console.error('Error generating non-active students report:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   } finally {
     await prisma.$disconnect()

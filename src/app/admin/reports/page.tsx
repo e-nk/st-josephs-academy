@@ -15,11 +15,13 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Download, FileSpreadsheet, Users, DollarSign, Search, File } from 'lucide-react'
+import { Download, FileSpreadsheet, Users, DollarSign, Search, File, UserCheck, GraduationCap, ArrowRight } from 'lucide-react'
 import { StudentReport } from '@/components/reports/student-report'
 import { generateClassReportPDF } from '@/lib/pdf-export'
 import { ArrearsReport } from '@/components/reports/arrears-report'
 import { AnnualReport } from '@/components/reports/annual-report'
+import { NonActiveStudents } from '@/components/reports/non-active-students'
+
 
 const classes = [
   'Baby Class',
@@ -39,6 +41,10 @@ interface ClassReport {
   className: string
   summary: {
     totalStudents: number
+    activeStudents: number
+    graduatedStudents: number
+    transferredStudents: number
+    withdrawnStudents: number
     paidInFull: number
     partialPayment: number
     unpaid: number
@@ -54,8 +60,11 @@ interface ClassReport {
     totalDue: number
     totalPaid: number
     totalBalance: number
-    status: string
+    status: string // Add this
+    graduationYear?: number // Add this
+    paymentStatus: string
     lastPaymentDate: string | null
+    notes?: string // Add this
   }>
 }
 
@@ -148,18 +157,34 @@ export default function ReportsPage() {
     }).format(amount)
   }
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'PAID_FULL':
-        return <Badge className="bg-green-100 text-green-800">Paid Full</Badge>
-      case 'PARTIAL':
-        return <Badge variant="secondary">Partial</Badge>
-      case 'UNPAID':
-        return <Badge variant="destructive">Unpaid</Badge>
-      default:
-        return <Badge variant="outline">{status}</Badge>
-    }
-  }
+ const getPaymentStatusBadge = (status: string) => {
+		switch (status) {
+			case 'PAID_FULL':
+				return <Badge className="bg-green-100 text-green-800">Paid Full</Badge>
+			case 'PARTIAL':
+				return <Badge variant="secondary">Partial</Badge>
+			case 'UNPAID':
+				return <Badge variant="destructive">Unpaid</Badge>
+			default:
+				return <Badge variant="outline">{status}</Badge>
+		}
+	}
+
+
+		const getStudentStatusBadge = (status: string, graduationYear?: number) => {
+			switch (status) {
+				case 'ACTIVE':
+					return <Badge className="bg-blue-100 text-blue-800">Active</Badge>
+				case 'GRADUATED':
+					return <Badge className="bg-purple-100 text-purple-800">Graduated {graduationYear || ''}</Badge>
+				case 'TRANSFERRED':
+					return <Badge className="bg-yellow-100 text-yellow-800">Transferred</Badge>
+				case 'WITHDRAWN':
+					return <Badge className="bg-red-100 text-red-800">Withdrawn</Badge>
+				default:
+					return <Badge variant="outline">{status}</Badge>
+			}
+		}
 
   const exportToCSV = () => {
     if (!classReport) return
@@ -275,7 +300,7 @@ export default function ReportsPage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  {getStatusBadge(lookupStudent.status)}
+                  {getStudentStatusBadge(lookupStudent.status)}
                   <Button
                     size="sm"
                     onClick={() => handleStudentReport(lookupStudent.id)}
@@ -337,106 +362,137 @@ export default function ReportsPage() {
           {classReport && (
             <div className="space-y-6">
               {/* Summary Cards */}
-              <div className="grid gap-4 md:grid-cols-4">
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total Students</p>
-                        <p className="text-2xl font-bold">{classReport.summary.totalStudents}</p>
-                      </div>
-                      <Users className="h-8 w-8 text-blue-500" />
-                    </div>
-                  </CardContent>
-                </Card>
+              <div className="grid gap-4 md:grid-cols-6"> {/* Changed from 4 to 6 columns */}
+								<Card>
+									<CardContent className="p-4">
+										<div className="flex items-center justify-between">
+											<div>
+												<p className="text-sm text-muted-foreground">Total Students</p>
+												<p className="text-2xl font-bold">{classReport.summary.totalStudents}</p>
+											</div>
+											<Users className="h-8 w-8 text-blue-500" />
+										</div>
+									</CardContent>
+								</Card>
 
                 <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Paid in Full</p>
-                        <p className="text-2xl font-bold text-green-600">{classReport.summary.paidInFull}</p>
-                      </div>
-                      <div className="h-8 w-8 bg-green-100 rounded-full flex items-center justify-center">
-                        <span className="text-green-600 font-bold">✓</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+							<CardContent className="p-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm text-muted-foreground">Active</p>
+										<p className="text-2xl font-bold text-blue-600">{classReport.summary.activeStudents}</p>
+									</div>
+									<UserCheck className="h-8 w-8 text-blue-500" />
+								</div>
+							</CardContent>
+						</Card>
 
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Outstanding</p>
-                        <p className="text-2xl font-bold text-red-600">{classReport.summary.unpaid + classReport.summary.partialPayment}</p>
-                      </div>
-                      <div className="h-8 w-8 bg-red-100 rounded-full flex items-center justify-center">
-                        <span className="text-red-600 font-bold">!</span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
+						<Card>
+							<CardContent className="p-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm text-muted-foreground">Graduated</p>
+										<p className="text-2xl font-bold text-purple-600">{classReport.summary.graduatedStudents}</p>
+									</div>
+									<GraduationCap className="h-8 w-8 text-purple-500" />
+								</div>
+							</CardContent>
+						</Card>
 
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm text-muted-foreground">Total Outstanding</p>
-                        <p className="text-xl font-bold text-red-600">{formatCurrency(classReport.summary.totalOutstanding)}</p>
-                      </div>
-                      <DollarSign className="h-8 w-8 text-red-500" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+						<Card>
+							<CardContent className="p-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm text-muted-foreground">Transferred</p>
+										<p className="text-2xl font-bold text-yellow-600">{classReport.summary.transferredStudents}</p>
+									</div>
+									<ArrowRight className="h-8 w-8 text-yellow-500" />
+								</div>
+							</CardContent>
+						</Card>
+
+						<Card>
+							<CardContent className="p-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm text-muted-foreground">Paid in Full</p>
+										<p className="text-2xl font-bold text-green-600">{classReport.summary.paidInFull}</p>
+									</div>
+									<div className="h-8 w-8 bg-green-100 rounded-full flex items-center justify-center">
+										<span className="text-green-600 font-bold">✓</span>
+									</div>
+								</div>
+							</CardContent>
+						</Card>
+
+						<Card>
+							<CardContent className="p-4">
+								<div className="flex items-center justify-between">
+									<div>
+										<p className="text-sm text-muted-foreground">Total Outstanding</p>
+										<p className="text-xl font-bold text-red-600">{formatCurrency(classReport.summary.totalOutstanding)}</p>
+									</div>
+									<DollarSign className="h-8 w-8 text-red-500" />
+								</div>
+							</CardContent>
+						</Card>
+					</div>
 
               {/* Students Table */}
               <div className="rounded-md border">
                 <Table>
                   <TableHeader>
-                    <TableRow>
-                      <TableHead>Admission No.</TableHead>
-                      <TableHead>Student Name</TableHead>
-                      <TableHead>Total Due</TableHead>
-                      <TableHead>Paid</TableHead>
-                      <TableHead>Balance</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
+										<TableRow>
+											<TableHead>Admission No.</TableHead>
+											<TableHead>Student Name</TableHead>
+											<TableHead>Student Status</TableHead> {/* Add this column */}
+											<TableHead>Total Due</TableHead>
+											<TableHead>Paid</TableHead>
+											<TableHead>Balance</TableHead>
+											<TableHead>Payment Status</TableHead> {/* Rename this for clarity */}
+											<TableHead>Actions</TableHead>
+										</TableRow>
+									</TableHeader>
                   <TableBody>
-                    {classReport.students.map((student) => (
-                      <TableRow key={student.id}>
-                        <TableCell className="font-medium">
-                          {student.admissionNumber}
-                        </TableCell>
-                        <TableCell>
-                          {student.firstName} {student.lastName}
-                        </TableCell>
-                        <TableCell>{formatCurrency(student.totalDue)}</TableCell>
-                        <TableCell className="text-green-600">
-                          {formatCurrency(student.totalPaid)}
-                        </TableCell>
-                        <TableCell className="text-red-600">
-                          {formatCurrency(student.totalBalance)}
-                        </TableCell>
-                        <TableCell>
-                          {getStatusBadge(student.status)}
-                        </TableCell>
-                        <TableCell>
-                          <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={() => handleStudentReport(student.id)}
-                          >
-                            <FileSpreadsheet className="h-4 w-4 mr-1" />
-                            Report
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
+										{classReport.students.map((student) => (
+											<TableRow key={student.id}>
+												<TableCell className="font-medium">
+													{student.admissionNumber}
+												</TableCell>
+												<TableCell>
+													{student.firstName} {student.lastName}
+													{student.notes && (
+														<div className="text-xs text-muted-foreground truncate max-w-32" title={student.notes}>
+															{student.notes}
+														</div>
+													)}
+												</TableCell>
+												<TableCell>
+													{getStudentStatusBadge(student.status, student.graduationYear)}
+												</TableCell>
+												<TableCell>{formatCurrency(student.totalDue)}</TableCell>
+												<TableCell className="text-green-600">
+													{formatCurrency(student.totalPaid)}
+												</TableCell>
+												<TableCell className="text-red-600">
+													{formatCurrency(student.totalBalance)}
+												</TableCell>
+												<TableCell>
+													{getPaymentStatusBadge(student.paymentStatus)}
+												</TableCell>
+												<TableCell>
+													<Button 
+														variant="outline" 
+														size="sm"
+														onClick={() => handleStudentReport(student.id)}
+													>
+														<FileSpreadsheet className="h-4 w-4 mr-1" />
+														Report
+													</Button>
+												</TableCell>
+											</TableRow>
+										))}
+									</TableBody>
                 </Table>
               </div>
             </div>
@@ -455,6 +511,9 @@ export default function ReportsPage() {
 
 			{/* Annual Report Section */}
 			<AnnualReport />
+
+			{/* Non-Active Students Section */}
+			<NonActiveStudents />
     </div>
   )
 }
