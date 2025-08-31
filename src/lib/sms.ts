@@ -1,4 +1,4 @@
-import axios from 'axios'
+import AfricasTalking from 'africastalking'
 
 interface SMSMessage {
   to: string
@@ -6,14 +6,18 @@ interface SMSMessage {
 }
 
 class SMSService {
-  private apiKey: string
-  private username: string
-  private baseUrl: string
+  private africastalking: any
 
   constructor() {
-    this.apiKey = process.env.SMS_API_KEY || ''
-    this.username = process.env.SMS_USERNAME || ''
-    this.baseUrl = 'https://api.africastalking.com/version1/messaging'
+    const apiKey = process.env.SMS_API_KEY || ''
+    const username = process.env.SMS_USERNAME || ''
+
+    if (apiKey && username) {
+      this.africastalking = AfricasTalking({
+        apiKey: apiKey,
+        username: username,
+      })
+    }
   }
 
   async sendSMS(to: string, message: string): Promise<boolean> {
@@ -27,41 +31,26 @@ class SMSService {
         return true
       }
 
-      // Debug logging (remove in production)
-      console.log('SMS Configuration:', {
-        username: this.username,
-        hasApiKey: !!this.apiKey,
-        apiKeyLength: this.apiKey.length,
-        baseUrl: this.baseUrl
-      })
-
-      // Format phone number for Africa's Talking (should start with +)
-      const formattedPhone = to.startsWith('+') ? to : `+${to}`
-      console.log('Sending SMS to:', formattedPhone)
-
-      const requestData = {
-        username: this.username,
-        to: formattedPhone,
-        message: message,
+      if (!this.africastalking) {
+        console.error('Africa\'s Talking not initialized - missing credentials')
+        return false
       }
 
-      const response = await axios.post(
-        this.baseUrl,
-        new URLSearchParams(requestData),
-        {
-          headers: {
-            'apiKey': this.apiKey,
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Accept': 'application/json',
-          },
-          timeout: 10000, // 10 seconds timeout
-        }
-      )
-
-      console.log('SMS API Response:', response.data)
+      // Format phone number - Africa's Talking SDK handles this better
+      const formattedPhone = to.startsWith('+') ? to : `+${to}`
       
-      if (response.data.SMSMessageData && response.data.SMSMessageData.Recipients) {
-        const recipient = response.data.SMSMessageData.Recipients[0]
+      console.log('Sending SMS via Africa\'s Talking SDK to:', formattedPhone)
+
+      const result = await this.africastalking.SMS.send({
+        to: formattedPhone,
+        message: message,
+        // from: 'SJAS' // Optional: Your sender ID if you have one registered
+      })
+
+      console.log('SMS API Response:', result)
+      
+      if (result.SMSMessageData && result.SMSMessageData.Recipients) {
+        const recipient = result.SMSMessageData.Recipients[0]
         const success = recipient.status === 'Success'
         console.log('SMS Status:', recipient.status, 'Cost:', recipient.cost)
         return success
@@ -69,16 +58,7 @@ class SMSService {
       
       return false
     } catch (error: any) {
-      console.error('Error sending SMS:', {
-        status: error.response?.status,
-        data: error.response?.data,
-        message: error.message,
-        config: {
-          url: error.config?.url,
-          method: error.config?.method,
-          headers: error.config?.headers ? Object.keys(error.config.headers) : []
-        }
-      })
+      console.error('Error sending SMS:', error)
       return false
     }
   }
