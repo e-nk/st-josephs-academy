@@ -11,8 +11,6 @@ class SMSService {
   private baseUrl: string
 
   constructor() {
-    // Using Africa's Talking SMS service (popular in Kenya)
-    // You can also use other SMS providers
     this.apiKey = process.env.SMS_API_KEY || ''
     this.username = process.env.SMS_USERNAME || ''
     this.baseUrl = 'https://api.africastalking.com/version1/messaging'
@@ -22,32 +20,46 @@ class SMSService {
     try {
       // For development, we'll just log the SMS
       if (process.env.NODE_ENV === 'development') {
-        console.log('=== SMS NOTIFICATION ===')
+        console.log('=== SMS NOTIFICATION (Development Mode) ===')
         console.log(`To: ${to}`)
         console.log(`Message: ${message}`)
-        console.log('========================')
+        console.log('============================================')
         return true
       }
 
-      // Real SMS sending logic (when you have SMS provider credentials)
+      // Format phone number for Africa's Talking (should start with +)
+      const formattedPhone = to.startsWith('+') ? to : `+${to}`
+
       const response = await axios.post(
         this.baseUrl,
-        {
+        new URLSearchParams({
           username: this.username,
-          to: to,
+          to: formattedPhone,
           message: message,
-        },
+        }),
         {
           headers: {
             'apiKey': this.apiKey,
             'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
           },
         }
       )
 
-      return response.data.SMSMessageData.Recipients[0].status === 'Success'
-    } catch (error) {
-      console.error('Error sending SMS:', error)
+      console.log('SMS API Response:', response.data)
+      
+      if (response.data.SMSMessageData && response.data.SMSMessageData.Recipients) {
+        const recipient = response.data.SMSMessageData.Recipients[0]
+        return recipient.status === 'Success'
+      }
+      
+      return false
+    } catch (error: any) {
+      console.error('Error sending SMS:', {
+        status: error.response?.status,
+        data: error.response?.data,
+        message: error.message
+      })
       return false
     }
   }
@@ -62,15 +74,15 @@ class SMSService {
   ): string {
     const balanceText = newBalance > 0 
       ? `Balance: ${this.formatCurrency(newBalance)}`
-      : 'No balance - PAID IN FULL'
+      : 'PAID IN FULL'
 
     return `ST. JOSEPH'S ACADEMY
-Fee Payment Confirmed
+Payment Confirmed
 Student: ${studentName} (${admissionNumber})
-Amount Paid: ${this.formatCurrency(amountPaid)}
+Amount: ${this.formatCurrency(amountPaid)}
 ${balanceText}
 Ref: ${transactionId}
-Thank you for your payment!`
+Thank you!`
   }
 
   // Generate payment receipt message for director
@@ -81,7 +93,7 @@ Thank you for your payment!`
     paymentMethod: string,
     transactionId: string
   ): string {
-    return `ST. JOSEPH'S ACADEMY - PAYMENT ALERT
+    return `ST. JOSEPH'S ACADEMY - PAYMENT RECEIVED
 Student: ${studentName} (${admissionNumber})
 Amount: ${this.formatCurrency(amountPaid)}
 Method: ${paymentMethod}
