@@ -6,7 +6,7 @@ import { SessionProvider } from '@/components/session-provider'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'St. Joseph\'s Academy - Fee Management',
+  title: 'St. Joseph\'s Central Academy-Sironoi - Fee Management',
   description: 'School fee collection and management system',
 }
 

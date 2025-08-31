@@ -183,7 +183,7 @@ export function StudentReport({ open, onClose, studentId }: StudentReportProps) 
     </head>
     <body>
       <div class="header">
-        <h1 class="school-name">St. Joseph's Academy</h1>
+        <h1 class="school-name">St. Joseph's Central Academy-Sironoi</h1>
         <h2 class="report-title">Student Fee Report</h2>
         <p>Generated on ${new Date().toLocaleDateString('en-KE')}</p>
       </div>
@@ -275,7 +275,7 @@ export function StudentReport({ open, onClose, studentId }: StudentReportProps) 
       </table>
 
       <div class="footer">
-        <p>This report was generated electronically by St. Joseph's Academy Fee Management System</p>
+        <p>This report was generated electronically by St. Joseph's Central Academy-Sironoi Fee Management System</p>
         <p>For any queries, please contact the school administration</p>
       </div>
     </body>

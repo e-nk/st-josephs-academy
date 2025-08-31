@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Phone number required' }, { status: 400 })
     }
 
-    const testMessage = `Test SMS from St. Joseph's Academy Fee System at ${new Date().toLocaleString()}`
+    const testMessage = `Test SMS from St. Joseph's Central Academy-Sironoi Fee System at ${new Date().toLocaleString()}`
     
     const result = await smsService.sendSMS(phoneNumber, testMessage)
     

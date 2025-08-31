@@ -31,7 +31,7 @@ class EmailService {
         console.log('=== EMAIL RECEIPT (Development Mode) ===')
         console.log('To:', receiptData.parentEmail)
         console.log('CC:', process.env.DIRECTOR_EMAIL)
-        console.log('Subject: Payment Receipt - St. Joseph\'s Academy')
+        console.log('Subject: Payment Receipt - St. Joseph\'s Central Academy-Sironoi')
         console.log('Student:', receiptData.studentName)
         console.log('Amount:', receiptData.amountPaid)
         console.log('Transaction ID:', receiptData.transactionId)
@@ -44,7 +44,7 @@ class EmailService {
         from: process.env.FROM_EMAIL || 'fees@stjosephs.school',
         to: receiptData.parentEmail,
         cc: process.env.DIRECTOR_EMAIL ? [process.env.DIRECTOR_EMAIL] : undefined,
-        subject: `Payment Receipt - ${receiptData.studentName} - St. Joseph's Academy`,
+        subject: `Payment Receipt - ${receiptData.studentName} - St. Joseph's Central Academy-Sironoi`,
         html: this.generateReceiptHTML(receiptData),
       })
 
@@ -136,7 +136,7 @@ class EmailService {
     <body>
       <div class="container">
         <div class="header">
-          <h1>St. Joseph's Academy</h1>
+          <h1>St. Joseph's Central Academy-Sironoi</h1>
           <h2>Official Payment Receipt</h2>
         </div>
         
@@ -204,7 +204,7 @@ class EmailService {
           <p>For any queries, please contact the school administration.</p>
           <hr style="margin: 15px 0; border: none; border-top: 1px solid #d1d5db;">
           <p style="font-size: 12px; color: #6b7280;">
-            St. Joseph's Academy Fee Management System<br>
+            St. Joseph's Central Academy-Sironoi Fee Management System<br>
             Generated on ${formatDate(new Date())}
           </p>
         </div>

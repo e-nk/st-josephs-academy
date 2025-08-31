@@ -66,7 +66,7 @@ export default function AdminLayout({
           <div className="flex justify-between items-center py-4">
             <div>
               <h1 className="text-xl font-semibold text-gray-900">
-                St. Joseph's Academy - Fee Management
+                St. Joseph's Central Academy-Sironoi - Fee Management
               </h1>
               <p className="text-sm text-gray-500">
                 Welcome, {session.user.name || session.user.email}

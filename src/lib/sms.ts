@@ -131,7 +131,7 @@ class SMSService {
       ? `Balance: ${this.formatCurrency(newBalance)}`
       : 'PAID IN FULL'
 
-    return `ST. JOSEPH'S ACADEMY
+    return `ST. JOSEPH'S CENTRAL ACADEMY-SIRONOI
 Payment Confirmed
 ${studentName} (${admissionNumber})
 Paid: ${this.formatCurrency(amountPaid)}
@@ -146,7 +146,7 @@ Ref: ${transactionId}`
     paymentMethod: string,
     transactionId: string
   ): string {
-    return `PAYMENT ALERT - ST. JOSEPH'S ACADEMY
+    return `PAYMENT ALERT - ST. JOSEPH'S CENTRAL ACADEMY-SIRONOI
 ${studentName} (${admissionNumber})
 Amount: ${this.formatCurrency(amountPaid)}
 Method: ${paymentMethod}

@@ -45,7 +45,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl font-bold text-center">
-            St. Joseph's Academy
+            St. Joseph's Central Academy-Sironoi
           </CardTitle>
           <CardDescription className="text-center">
             Fee Management System - Admin Login
