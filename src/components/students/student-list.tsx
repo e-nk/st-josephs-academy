@@ -12,11 +12,13 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Upload } from 'lucide-react'
 import { Student } from '@/types'
 
 interface StudentListProps {
   onAddStudent: () => void
   onEditStudent: (student: Student) => void
+  onBulkImport: () => void
 }
 
 interface StudentsResponse {
@@ -29,7 +31,7 @@ interface StudentsResponse {
   }
 }
 
-export function StudentList({ onAddStudent, onEditStudent }: StudentListProps) {
+export function StudentList({ onAddStudent, onEditStudent, onBulkImport }: StudentListProps) {
   const [students, setStudents] = useState<Student[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -92,16 +94,22 @@ export function StudentList({ onAddStudent, onEditStudent }: StudentListProps) {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle>Students</CardTitle>
-            <CardDescription>
-              Manage student registrations and information
-            </CardDescription>
-          </div>
-          <Button onClick={onAddStudent}>Add Student</Button>
-        </div>
-      </CardHeader>
+				<div className="flex items-center justify-between">
+					<div>
+						<CardTitle>Students</CardTitle>
+						<CardDescription>
+							Manage student registrations and information
+						</CardDescription>
+					</div>
+					<div className="flex gap-2">
+						<Button onClick={onBulkImport} variant="outline">
+							<Upload className="h-4 w-4 mr-2" />
+							Bulk Import
+						</Button>
+						<Button onClick={onAddStudent}>Add Student</Button>
+					</div>
+				</div>
+			</CardHeader>
       <CardContent>
         {/* Search */}
         <form onSubmit={handleSearch} className="flex gap-2 mb-4">

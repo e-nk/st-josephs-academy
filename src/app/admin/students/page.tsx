@@ -3,10 +3,12 @@
 import { useState } from 'react'
 import { StudentList } from '@/components/students/student-list'
 import { StudentForm } from '@/components/students/student-form'
+import { BulkImport } from '@/components/students/bulk-import'
 import { Student } from '@/types'
 
 export default function StudentsPage() {
   const [showForm, setShowForm] = useState(false)
+  const [showBulkImport, setShowBulkImport] = useState(false)
   const [editingStudent, setEditingStudent] = useState<Student | null>(null)
   const [refreshKey, setRefreshKey] = useState(0)
 
@@ -20,13 +22,24 @@ export default function StudentsPage() {
     setShowForm(true)
   }
 
+  const handleBulkImport = () => {
+    setShowBulkImport(true)
+  }
+
   const handleFormClose = () => {
     setShowForm(false)
     setEditingStudent(null)
   }
 
+  const handleBulkImportClose = () => {
+    setShowBulkImport(false)
+  }
+
   const handleFormSuccess = () => {
-    // Refresh the student list
+    setRefreshKey(prev => prev + 1)
+  }
+
+  const handleBulkImportSuccess = () => {
     setRefreshKey(prev => prev + 1)
   }
 
@@ -40,9 +53,10 @@ export default function StudentsPage() {
       </div>
 
       <StudentList
-        key={refreshKey} // Force re-render when refreshKey changes
+        key={refreshKey}
         onAddStudent={handleAddStudent}
         onEditStudent={handleEditStudent}
+        onBulkImport={handleBulkImport}
       />
 
       <StudentForm
@@ -50,6 +64,12 @@ export default function StudentsPage() {
         onClose={handleFormClose}
         student={editingStudent}
         onSuccess={handleFormSuccess}
+      />
+
+      <BulkImport
+        open={showBulkImport}
+        onClose={handleBulkImportClose}
+        onSuccess={handleBulkImportSuccess}
       />
     </div>
   )
