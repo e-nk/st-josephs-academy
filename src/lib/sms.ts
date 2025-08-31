@@ -27,22 +27,34 @@ class SMSService {
         return true
       }
 
+      // Debug logging (remove in production)
+      console.log('SMS Configuration:', {
+        username: this.username,
+        hasApiKey: !!this.apiKey,
+        apiKeyLength: this.apiKey.length,
+        baseUrl: this.baseUrl
+      })
+
       // Format phone number for Africa's Talking (should start with +)
       const formattedPhone = to.startsWith('+') ? to : `+${to}`
+      console.log('Sending SMS to:', formattedPhone)
+
+      const requestData = {
+        username: this.username,
+        to: formattedPhone,
+        message: message,
+      }
 
       const response = await axios.post(
         this.baseUrl,
-        new URLSearchParams({
-          username: this.username,
-          to: formattedPhone,
-          message: message,
-        }),
+        new URLSearchParams(requestData),
         {
           headers: {
             'apiKey': this.apiKey,
             'Content-Type': 'application/x-www-form-urlencoded',
             'Accept': 'application/json',
           },
+          timeout: 10000, // 10 seconds timeout
         }
       )
 
@@ -50,7 +62,9 @@ class SMSService {
       
       if (response.data.SMSMessageData && response.data.SMSMessageData.Recipients) {
         const recipient = response.data.SMSMessageData.Recipients[0]
-        return recipient.status === 'Success'
+        const success = recipient.status === 'Success'
+        console.log('SMS Status:', recipient.status, 'Cost:', recipient.cost)
+        return success
       }
       
       return false
@@ -58,7 +72,12 @@ class SMSService {
       console.error('Error sending SMS:', {
         status: error.response?.status,
         data: error.response?.data,
-        message: error.message
+        message: error.message,
+        config: {
+          url: error.config?.url,
+          method: error.config?.method,
+          headers: error.config?.headers ? Object.keys(error.config.headers) : []
+        }
       })
       return false
     }
