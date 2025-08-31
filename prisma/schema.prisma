@@ -21,6 +21,10 @@ model Student {
   parentPhone       String
   parentEmail       String?
   dateOfBirth       DateTime?
+  status            StudentStatus @default(ACTIVE)
+  graduationYear    Int?     // Year when student graduated or left
+  currentAcademicYear Int   @default(2024) // Track which academic year they're in
+  notes             String?  // For any special notes
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   
@@ -29,6 +33,13 @@ model Student {
   feeAssignments    FeeAssignment[]
   
   @@map("students")
+}
+
+enum StudentStatus {
+  ACTIVE      // Currently enrolled
+  GRADUATED   // Completed final grade
+  TRANSFERRED // Moved to another school
+  WITHDRAWN   // Left before graduation
 }
 
 model FeeStructure {
