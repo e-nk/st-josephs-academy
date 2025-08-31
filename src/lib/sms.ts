@@ -20,6 +20,26 @@ class SMSService {
     }
   }
 
+  private formatPhoneNumber(phoneNumber: string): string {
+    // Remove all non-digit characters
+    let cleaned = phoneNumber.replace(/\D/g, '')
+    
+    // Handle different formats
+    if (cleaned.startsWith('254')) {
+      // Already in correct format
+      return `+${cleaned}`
+    } else if (cleaned.startsWith('0')) {
+      // Convert 07xxxxxxxx to +254xxxxxxxx
+      return `+254${cleaned.substring(1)}`
+    } else if (cleaned.length === 9) {
+      // Handle 7xxxxxxxx format
+      return `+254${cleaned}`
+    }
+    
+    // Default: assume it needs Kenya country code
+    return `+254${cleaned}`
+  }
+
   async sendSMS(to: string, message: string): Promise<boolean> {
     try {
       // For development, we'll just log the SMS
@@ -36,15 +56,18 @@ class SMSService {
         return false
       }
 
-      // Format phone number - Africa's Talking SDK handles this better
-      const formattedPhone = to.startsWith('+') ? to : `+${to}`
-      
-      console.log('Sending SMS via Africa\'s Talking SDK to:', formattedPhone)
+      const formattedPhone = this.formatPhoneNumber(to)
+      console.log('Original phone:', to, '→ Formatted:', formattedPhone)
+
+      // Validate phone number format
+      if (!formattedPhone.match(/^\+254[0-9]{9}$/)) {
+        console.error('Invalid phone number format:', formattedPhone)
+        return false
+      }
 
       const result = await this.africastalking.SMS.send({
         to: formattedPhone,
         message: message,
-        // from: 'SJAS' // Optional: Your sender ID if you have one registered
       })
 
       console.log('SMS API Response:', result)
@@ -63,7 +86,7 @@ class SMSService {
     }
   }
 
-  // Generate payment confirmation message
+  // Generate payment confirmation message (keep it short for SMS limits)
   generatePaymentConfirmationSMS(
     studentName: string,
     admissionNumber: string,
@@ -77,11 +100,10 @@ class SMSService {
 
     return `ST. JOSEPH'S ACADEMY
 Payment Confirmed
-Student: ${studentName} (${admissionNumber})
-Amount: ${this.formatCurrency(amountPaid)}
+${studentName} (${admissionNumber})
+Paid: ${this.formatCurrency(amountPaid)}
 ${balanceText}
-Ref: ${transactionId}
-Thank you!`
+Ref: ${transactionId}`
   }
 
   // Generate payment receipt message for director
@@ -92,12 +114,11 @@ Thank you!`
     paymentMethod: string,
     transactionId: string
   ): string {
-    return `ST. JOSEPH'S ACADEMY - PAYMENT RECEIVED
-Student: ${studentName} (${admissionNumber})
+    return `PAYMENT ALERT - ST. JOSEPH'S ACADEMY
+${studentName} (${admissionNumber})
 Amount: ${this.formatCurrency(amountPaid)}
 Method: ${paymentMethod}
-Ref: ${transactionId}
-Time: ${new Date().toLocaleString('en-KE')}`
+Ref: ${transactionId}`
   }
 
   private formatCurrency(amount: number): string {

@@ -255,25 +255,30 @@ async function processPayment(data: PaymentData) {
 		
 		// Send SMS notification to student/parent
 		// Send SMS notification to parent
-		try {
-			const parentPhone = student.parentPhone
-			if (parentPhone) {
-				const newBalance = Math.max(0, totalBalance)
-				const smsMessage = smsService.generatePaymentConfirmationSMS(
-					`${student.firstName} ${student.lastName}`,
-					student.admissionNumber,
-					data.amount,
-					newBalance,
-					data.transactionId
-				)
-				
-				await smsService.sendSMS(parentPhone, smsMessage)
-				console.log('SMS sent to parent:', parentPhone)
+		// Send SMS notification to parent
+			try {
+				const parentPhone = student.parentPhone
+				if (parentPhone) {
+					console.log('Attempting to send SMS to parent phone:', parentPhone)
+					
+					const newBalance = Math.max(0, totalBalance)
+					const smsMessage = smsService.generatePaymentConfirmationSMS(
+						`${student.firstName} ${student.lastName}`,
+						student.admissionNumber,
+						data.amount,
+						newBalance,
+						data.transactionId
+					)
+					
+					const smsResult = await smsService.sendSMS(parentPhone, smsMessage)
+					console.log('Parent SMS result:', smsResult)
+				} else {
+					console.log('No parent phone number found')
+				}
+			} catch (smsError) {
+				console.error('Error sending SMS to parent:', smsError)
+				// Don't fail the payment if SMS fails
 			}
-		} catch (smsError) {
-			console.error('Error sending SMS to parent:', smsError)
-			// Don't fail the payment if SMS fails
-		}
 
 		// Send notification to director (if director phone is configured)
 		try {
