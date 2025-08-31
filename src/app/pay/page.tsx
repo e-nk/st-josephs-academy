@@ -65,27 +65,27 @@ export default function PaymentPage() {
   }
 
   const checkPaymentStatus = async (checkoutId: string) => {
-    try {
-      const response = await fetch(`/api/payment-status/${checkoutId}`)
-      const data = await response.json()
-      
-      if (data.status === 'confirmed') {
-        // Payment confirmed - redirect to success page
-        const successUrl = `/pay/success?transactionId=${data.transactionId}&amount=${data.amount}&studentName=${encodeURIComponent(data.studentName)}&balance=${studentInfo ? studentInfo.totalOutstanding - data.amount : 0}`
-        window.location.href = successUrl
-        return true
-      } else if (data.status === 'failed') {
-        setError('Payment failed. Please try again.')
-        setPaymentLoading(false)
-        return true
-      }
-      
-      return false // Payment still pending
-    } catch (error) {
-      console.error('Error checking payment status:', error)
-      return false
-    }
-  }
+		try {
+			const response = await fetch(`/api/checkout-status/${checkoutId}`)
+			const data = await response.json()
+			
+			if (data.status === 'confirmed') {
+				// Payment confirmed - redirect to success page
+				const successUrl = `/pay/success?transactionId=${data.transactionId}&amount=${data.amount}&studentName=${encodeURIComponent(data.studentName)}&balance=${data.balance}`
+				window.location.href = successUrl
+				return true
+			} else if (data.status === 'failed') {
+				setError('Payment failed. Please try again.')
+				setPaymentLoading(false)
+				return true
+			}
+			
+			return false // Payment still pending
+		} catch (error) {
+			console.error('Error checking payment status:', error)
+			return false
+		}
+	}
 
   const pollPaymentStatus = (checkoutId: string) => {
     const pollInterval = setInterval(async () => {
