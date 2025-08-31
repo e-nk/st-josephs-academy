@@ -18,6 +18,8 @@ import {
 import { Download, FileSpreadsheet, Users, DollarSign, Search, File } from 'lucide-react'
 import { StudentReport } from '@/components/reports/student-report'
 import { generateClassReportPDF } from '@/lib/pdf-export'
+import { ArrearsReport } from '@/components/reports/arrears-report'
+import { AnnualReport } from '@/components/reports/annual-report'
 
 const classes = [
   'Baby Class',
@@ -447,6 +449,12 @@ export default function ReportsPage() {
         onClose={() => setShowStudentReport(false)}
         studentId={selectedStudentId}
       />
+
+			{/* Arrears Report Section */}
+			<ArrearsReport />
+
+			{/* Annual Report Section */}
+			<AnnualReport />
     </div>
   )
 }
