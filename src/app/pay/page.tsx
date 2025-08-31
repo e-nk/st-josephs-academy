@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Loader2 } from 'lucide-react'
 
 interface StudentInfo {
   id: string
@@ -29,6 +30,8 @@ export default function PaymentPage() {
   const [studentInfo, setStudentInfo] = useState<StudentInfo | null>(null)
   const [loading, setLoading] = useState(false)
   const [searchLoading, setSearchLoading] = useState(false)
+  const [paymentLoading, setPaymentLoading] = useState(false)
+  const [checkoutRequestId, setCheckoutRequestId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -61,6 +64,47 @@ export default function PaymentPage() {
     }
   }
 
+  const checkPaymentStatus = async (checkoutId: string) => {
+    try {
+      const response = await fetch(`/api/payment-status/${checkoutId}`)
+      const data = await response.json()
+      
+      if (data.status === 'confirmed') {
+        // Payment confirmed - redirect to success page
+        const successUrl = `/pay/success?transactionId=${data.transactionId}&amount=${data.amount}&studentName=${encodeURIComponent(data.studentName)}&balance=${studentInfo ? studentInfo.totalOutstanding - data.amount : 0}`
+        window.location.href = successUrl
+        return true
+      } else if (data.status === 'failed') {
+        setError('Payment failed. Please try again.')
+        setPaymentLoading(false)
+        return true
+      }
+      
+      return false // Payment still pending
+    } catch (error) {
+      console.error('Error checking payment status:', error)
+      return false
+    }
+  }
+
+  const pollPaymentStatus = (checkoutId: string) => {
+    const pollInterval = setInterval(async () => {
+      const isComplete = await checkPaymentStatus(checkoutId)
+      if (isComplete) {
+        clearInterval(pollInterval)
+      }
+    }, 3000) // Check every 3 seconds
+
+    // Stop polling after 5 minutes (100 * 3 seconds)
+    setTimeout(() => {
+      clearInterval(pollInterval)
+      if (paymentLoading) {
+        setPaymentLoading(false)
+        setError('Payment timeout. Please check your M-Pesa messages and try again if payment was not processed.')
+      }
+    }, 300000) // 5 minutes
+  }
+
   const initiatePayment = async (e: React.FormEvent) => {
     e.preventDefault()
     
@@ -85,7 +129,7 @@ export default function PaymentPage() {
       return
     }
 
-    setLoading(true)
+    setPaymentLoading(true)
     setError('')
     setSuccess('')
 
@@ -105,16 +149,19 @@ export default function PaymentPage() {
       const data = await response.json()
 
       if (response.ok) {
-				setSuccess(`Payment request sent to ${phoneNumber}. Please check your phone and enter your M-Pesa PIN to complete the payment. You will be notified once payment is confirmed.`)
-				setAmount('')
-				// Remove the immediate redirect to success page
-			} else {
-				setError(data.error || 'Failed to initiate payment')
-			}
+        setCheckoutRequestId(data.checkoutRequestId)
+        setSuccess(`Payment request sent to ${phoneNumber}. Please check your phone and enter your M-Pesa PIN to complete the payment.`)
+        setAmount('')
+        
+        // Start polling for payment status
+        pollPaymentStatus(data.checkoutRequestId)
+      } else {
+        setError(data.error || 'Failed to initiate payment')
+        setPaymentLoading(false)
+      }
     } catch (error) {
       setError('Network error. Please try again.')
-    } finally {
-      setLoading(false)
+      setPaymentLoading(false)
     }
   }
 
@@ -156,13 +203,21 @@ export default function PaymentPage() {
                 value={admissionNumber}
                 onChange={(e) => setAdmissionNumber(e.target.value)}
                 onKeyPress={(e) => e.key === 'Enter' && searchStudent()}
+                disabled={paymentLoading}
               />
               <Button 
                 onClick={searchStudent} 
-                disabled={searchLoading}
+                disabled={searchLoading || paymentLoading}
                 className="shrink-0"
               >
-                {searchLoading ? 'Searching...' : 'Search'}
+                {searchLoading ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    Searching...
+                  </>
+                ) : (
+                  'Search'
+                )}
               </Button>
             </div>
           </CardContent>
@@ -180,6 +235,14 @@ export default function PaymentPage() {
           <Card className="mb-6 border-green-200">
             <CardContent className="pt-6">
               <div className="text-green-600 text-center">{success}</div>
+              {paymentLoading && (
+                <div className="mt-4 flex items-center justify-center">
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  <span className="text-sm text-gray-600">
+                    Waiting for payment confirmation... Please complete the payment on your phone.
+                  </span>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -218,7 +281,7 @@ export default function PaymentPage() {
               <CardContent>
                 {studentInfo.feeBreakdown.length === 0 ? (
                   <p className="text-center text-green-600 py-4">
-                    ✅ No outstanding fees. All payments are up to date!
+                    ✓ No outstanding fees. All payments are up to date!
                   </p>
                 ) : (
                   <>
@@ -270,6 +333,7 @@ export default function PaymentPage() {
                         value={phoneNumber}
                         onChange={(e) => setPhoneNumber(e.target.value)}
                         placeholder="0722123456"
+                        disabled={paymentLoading}
                         required
                       />
                       <p className="text-xs text-muted-foreground">
@@ -290,6 +354,7 @@ export default function PaymentPage() {
                         value={amount}
                         onChange={(e) => setAmount(e.target.value)}
                         placeholder="Enter amount to pay"
+                        disabled={paymentLoading}
                         required
                       />
                       <p className="text-xs text-muted-foreground">
@@ -297,8 +362,15 @@ export default function PaymentPage() {
                       </p>
                     </div>
 
-                    <Button type="submit" disabled={loading} className="w-full">
-                      {loading ? 'Initiating Payment...' : 'Pay with M-Pesa'}
+                    <Button type="submit" disabled={paymentLoading} className="w-full">
+                      {paymentLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          Processing Payment...
+                        </>
+                      ) : (
+                        'Pay with M-Pesa'
+                      )}
                     </Button>
                   </form>
 
@@ -310,7 +382,7 @@ export default function PaymentPage() {
                       <li>3. Click "Pay with M-Pesa"</li>
                       <li>4. You'll receive an STK push on your phone</li>
                       <li>5. Enter your M-Pesa PIN to complete payment</li>
-                      <li>6. You'll receive a confirmation message</li>
+                      <li>6. You'll be redirected once payment is confirmed</li>
                     </ol>
                   </div>
                 </CardContent>
