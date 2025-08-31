@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -13,7 +15,9 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { Download, FileSpreadsheet, Users, DollarSign } from 'lucide-react'
+import { Download, FileSpreadsheet, Users, DollarSign, Search, File } from 'lucide-react'
+import { StudentReport } from '@/components/reports/student-report'
+import { generateClassReportPDF } from '@/lib/pdf-export'
 
 const classes = [
   'Baby Class',
@@ -53,10 +57,33 @@ interface ClassReport {
   }>
 }
 
+interface StudentData {
+  id: string
+  admissionNumber: string
+  firstName: string
+  lastName: string
+  middleName: string
+  class: string
+  parentName: string
+  totalDue: number
+  totalPaid: number
+  totalBalance: number
+  status: string
+  lastPaymentDate: string | null
+}
+
 export default function ReportsPage() {
   const [selectedClass, setSelectedClass] = useState<string>('')
   const [classReport, setClassReport] = useState<ClassReport | null>(null)
   const [loading, setLoading] = useState(false)
+  const [showStudentReport, setShowStudentReport] = useState(false)
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('')
+  
+  // Student lookup states
+  const [admissionNumber, setAdmissionNumber] = useState('')
+  const [lookupStudent, setLookupStudent] = useState<StudentData | null>(null)
+  const [lookupLoading, setLookupLoading] = useState(false)
+  const [lookupError, setLookupError] = useState('')
 
   const fetchClassReport = async (className: string) => {
     setLoading(true)
@@ -76,9 +103,40 @@ export default function ReportsPage() {
     }
   }
 
+  const fetchStudentByAdmission = async () => {
+    if (!admissionNumber.trim()) {
+      setLookupError('Please enter an admission number')
+      return
+    }
+
+    setLookupLoading(true)
+    setLookupError('')
+    setLookupStudent(null)
+
+    try {
+      const response = await fetch(`/api/reports/student-by-admission/${encodeURIComponent(admissionNumber)}`)
+      const data = await response.json()
+      
+      if (response.ok) {
+        setLookupStudent(data.student)
+      } else {
+        setLookupError(data.error || 'Student not found')
+      }
+    } catch (error) {
+      setLookupError('Error searching for student')
+    } finally {
+      setLookupLoading(false)
+    }
+  }
+
   const handleClassSelect = (className: string) => {
     setSelectedClass(className)
     fetchClassReport(className)
+  }
+
+  const handleStudentReport = (studentId: string) => {
+    setSelectedStudentId(studentId)
+    setShowStudentReport(true)
   }
 
   const formatCurrency = (amount: number) => {
@@ -142,15 +200,95 @@ export default function ReportsPage() {
     document.body.removeChild(a)
   }
 
+  const exportToPDF = () => {
+    if (!classReport) return
+
+    const htmlContent = generateClassReportPDF(classReport)
+    
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(htmlContent)
+      printWindow.document.close()
+      printWindow.focus()
+      setTimeout(() => {
+        printWindow.print()
+        printWindow.close()
+      }, 250)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-3xl font-bold tracking-tight">Fee Reports</h2>
         <p className="text-muted-foreground">
-          Generate and download detailed fee reports by class
+          Generate and download detailed fee reports by class or individual student
         </p>
       </div>
 
+      {/* Student Lookup Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Student Lookup</CardTitle>
+          <CardDescription>
+            Search for an individual student by admission number
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex gap-4 mb-4">
+            <div className="flex-1">
+              <Label htmlFor="admission">Admission Number</Label>
+              <Input
+                id="admission"
+                value={admissionNumber}
+                onChange={(e) => setAdmissionNumber(e.target.value)}
+                placeholder="Enter admission number (e.g., 2024001)"
+                onKeyPress={(e) => e.key === 'Enter' && fetchStudentByAdmission()}
+              />
+            </div>
+            <Button onClick={fetchStudentByAdmission} disabled={lookupLoading} className="mt-auto">
+              <Search className="h-4 w-4 mr-2" />
+              {lookupLoading ? 'Searching...' : 'Search'}
+            </Button>
+          </div>
+
+          {lookupError && (
+            <div className="text-red-600 text-sm mb-4">{lookupError}</div>
+          )}
+
+          {lookupStudent && (
+            <div className="border rounded-lg p-4 bg-gray-50">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-semibold">
+                    {lookupStudent.firstName} {lookupStudent.middleName} {lookupStudent.lastName}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {lookupStudent.admissionNumber} • {lookupStudent.class} • {lookupStudent.parentName}
+                  </p>
+                  <div className="mt-2 flex gap-4 text-sm">
+                    <span>Due: {formatCurrency(lookupStudent.totalDue)}</span>
+                    <span className="text-green-600">Paid: {formatCurrency(lookupStudent.totalPaid)}</span>
+                    <span className="text-red-600">Balance: {formatCurrency(lookupStudent.totalBalance)}</span>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  {getStatusBadge(lookupStudent.status)}
+                  <Button
+                    size="sm"
+                    onClick={() => handleStudentReport(lookupStudent.id)}
+                  >
+                    <FileSpreadsheet className="h-4 w-4 mr-1" />
+                    Full Report
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Class Reports Section */}
       <Card>
         <CardHeader>
           <CardTitle>Class Fee Reports</CardTitle>
@@ -174,10 +312,16 @@ export default function ReportsPage() {
             </Select>
             
             {classReport && (
-              <Button onClick={exportToCSV} variant="outline">
-                <Download className="h-4 w-4 mr-2" />
-                Export CSV
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={exportToCSV} variant="outline">
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </Button>
+                <Button onClick={exportToPDF} variant="outline">
+                  <File className="h-4 w-4 mr-2" />
+                  Export PDF
+                </Button>
+              </div>
             )}
           </div>
 
@@ -279,7 +423,11 @@ export default function ReportsPage() {
                           {getStatusBadge(student.status)}
                         </TableCell>
                         <TableCell>
-                          <Button variant="outline" size="sm">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleStudentReport(student.id)}
+                          >
                             <FileSpreadsheet className="h-4 w-4 mr-1" />
                             Report
                           </Button>
@@ -293,6 +441,12 @@ export default function ReportsPage() {
           )}
         </CardContent>
       </Card>
+
+      <StudentReport
+        open={showStudentReport}
+        onClose={() => setShowStudentReport(false)}
+        studentId={selectedStudentId}
+      />
     </div>
   )
 }
