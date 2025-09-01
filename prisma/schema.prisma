@@ -31,6 +31,7 @@ model Student {
   // Relationships
   payments          Payment[]
   feeAssignments    FeeAssignment[]
+	credits           StudentCredit[]
   
   @@map("students")
 }
@@ -95,8 +96,56 @@ model Payment {
   
   // Relationships
   student              Student?      @relation(fields: [studentId], references: [id])
+	unmatchedPayment     UnmatchedPayment?
   
   @@map("payments")
+}
+
+model UnmatchedPayment {
+  id                   String        @id @default(cuid())
+  amount               Decimal       @db.Decimal(10, 2)
+  paymentMethod        PaymentMethod @default(MPESA)
+  transactionId        String        @unique
+  accountReference     String        // The invalid admission number used
+  phoneNumber          String?       // Payer's phone number from M-Pesa
+  payerName           String?       // Payer's name from M-Pesa
+  transactionDate     DateTime      // When the payment was made
+  status              UnmatchedPaymentStatus @default(PENDING)
+  adminNotes          String?       // Admin notes for resolution
+  resolvedById        String?       // Admin who resolved this
+  resolvedAt          DateTime?     // When it was resolved
+  createdPaymentId    String?    @unique   // ID of the payment created after resolution
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  
+  // Relations
+  resolvedBy          User?         @relation(fields: [resolvedById], references: [id])
+  createdPayment      Payment?      @relation(fields: [createdPaymentId], references: [id])
+  
+  @@map("unmatched_payments")
+}
+
+enum UnmatchedPaymentStatus {
+  PENDING     // Waiting for admin review
+  RESOLVED    // Successfully matched to a student
+  REJECTED    // Marked as invalid/to be refunded
+}
+
+model StudentCredit {
+  id              String   @id @default(cuid())
+  studentId       String   
+  amount          Decimal  @db.Decimal(10, 2)
+  source          String   // Description of where credit came from
+  usedAmount      Decimal  @default(0) @db.Decimal(10, 2)
+  remainingAmount Decimal  @db.Decimal(10, 2) // Available credit balance
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  student         Student  @relation(fields: [studentId], references: [id])
+  
+  @@map("student_credits")
 }
 
 enum PaymentMethod {
@@ -152,6 +201,7 @@ model User {
   role          UserRole  @default(ADMIN)
   accounts      Account[]
   sessions      Session[]
+	resolvedPayments UnmatchedPayment[]
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
