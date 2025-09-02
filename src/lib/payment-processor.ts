@@ -1,6 +1,10 @@
 import { prisma } from '@/lib/db'
 import { smsService } from '@/lib/sms'
 import { emailService } from '@/lib/email'
+import { studentLedgerService } from '@/lib/student-ledger'
+
+// Define types locally to avoid Prisma generation issues
+type UnmatchedPaymentStatus = 'PENDING' | 'RESOLVED' | 'REJECTED'
 
 interface C2BPaymentData {
   transactionId: string
@@ -168,6 +172,16 @@ async function processMatchedPayment(paymentData: C2BPaymentData, student: any):
         }
       })
 
+      // Record payment in ledger
+      await studentLedgerService.recordPayment(
+        student.id,
+        payment.id,
+        paymentData.amount,
+        paymentData.paymentMethod,
+        paymentData.transactionId,
+        tx
+      )
+
       let remainingAmount = paymentData.amount
       const allocations: PaymentAllocation[] = []
 
@@ -229,6 +243,15 @@ async function processMatchedPayment(paymentData: C2BPaymentData, student: any):
             isActive: true
           }
         })
+
+        // Record credit creation in ledger
+        await studentLedgerService.recordCreditCreation(
+          student.id,
+          overpaymentAmount,
+          `Overpayment from transaction ${paymentData.transactionId}`,
+          tx
+        )
+        
         console.log(`Created credit of ${overpaymentAmount} for overpayment`)
       }
 
@@ -346,8 +369,82 @@ async function calculateStudentBalance(tx: any, studentId: string): Promise<numb
 }
 
 /**
- * Send payment notifications
+ * Calculate student's net balance including credits
+ * Returns: Positive = owes money, Negative = has credit, Zero = fully paid
  */
+export async function calculateStudentNetBalance(studentId: string, tx?: any): Promise<number> {
+  const db = tx || prisma
+  
+  const [feeAssignments, credits] = await Promise.all([
+    db.feeAssignment.findMany({
+      where: { studentId }
+    }),
+    // @ts-ignore - Prisma type issue
+    db.studentCredit.findMany({
+      where: { 
+        studentId,
+        isActive: true,
+        remainingAmount: { gt: 0 }
+      }
+    })
+  ])
+  
+  const totalOutstanding = feeAssignments.reduce(
+    (sum: number, assignment: any) => sum + Number(assignment.balance), 
+    0
+  )
+  
+  const totalCredits = credits.reduce(
+    (sum: number, credit: any) => sum + Number(credit.remainingAmount), 
+    0
+  )
+  
+  // Return net balance: positive = owes, negative = has credit
+  return totalOutstanding - totalCredits
+}
+
+/**
+ * Get detailed student balance breakdown
+ */
+export async function getStudentBalanceBreakdown(studentId: string) {
+  const [feeAssignments, credits, payments] = await Promise.all([
+    prisma.feeAssignment.findMany({
+      where: { studentId },
+      include: { feeStructure: true },
+      orderBy: { createdAt: 'asc' }
+    }),
+    // @ts-ignore - Prisma type issue
+    prisma.studentCredit.findMany({
+      where: { studentId, isActive: true },
+      orderBy: { createdAt: 'desc' }
+    }),
+    prisma.payment.findMany({
+      where: { studentId, status: 'CONFIRMED' },
+      orderBy: { confirmedAt: 'desc' },
+      take: 10 // Recent payments
+    })
+  ])
+  
+  const totalDue = feeAssignments.reduce((sum, assignment) => sum + Number(assignment.amountDue), 0)
+  const totalPaid = feeAssignments.reduce((sum, assignment) => sum + Number(assignment.amountPaid), 0)
+  const totalOutstanding = feeAssignments.reduce((sum, assignment) => sum + Number(assignment.balance), 0)
+  const totalCredits = credits.reduce((sum, credit) => sum + Number(credit.remainingAmount), 0)
+  const netBalance = totalOutstanding - totalCredits
+  
+  return {
+    totalDue,
+    totalPaid,
+    totalOutstanding,
+    totalCredits,
+    netBalance, // Negative means student has credit
+    hasCredit: netBalance < 0,
+    owesAmount: Math.max(0, netBalance),
+    creditAmount: Math.max(0, -netBalance),
+    feeAssignments,
+    credits,
+    recentPayments: payments
+  }
+}
 async function sendPaymentNotifications(
   student: any, 
   amountPaid: number, 

@@ -70,10 +70,17 @@ export default function UnmatchedPaymentsPage() {
 
   const fetchUnmatchedPayments = async () => {
     try {
+      setLoading(true)
+      console.log('Fetching unmatched payments...')
       const response = await fetch('/api/admin/unmatched-payments')
+      console.log('Response status:', response.status)
       const data = await response.json()
+      console.log('Response data:', data)
       if (response.ok) {
         setUnmatchedPayments(data.payments)
+        console.log('Loaded payments:', data.payments.length)
+      } else {
+        console.error('API error:', data.error)
       }
     } catch (error) {
       console.error('Error fetching unmatched payments:', error)
@@ -204,7 +211,15 @@ export default function UnmatchedPaymentsPage() {
       <div className="space-y-6">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Unmatched Payments</h2>
-          <p className="text-muted-foreground">Loading...</p>
+          <p className="text-muted-foreground">
+            Payments that could not be automatically matched to students
+          </p>
+        </div>
+        <div className="flex items-center justify-center p-8">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-2">Loading unmatched payments...</p>
+          </div>
         </div>
       </div>
     )

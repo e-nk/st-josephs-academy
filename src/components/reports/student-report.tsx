@@ -74,6 +74,8 @@ interface StudentReport {
 
 export function StudentReport({ open, onClose, studentId }: StudentReportProps) {
   const [report, setReport] = useState<StudentReport | null>(null)
+  const [ledgerData, setLedgerData] = useState<any>(null)
+  const [showLedger, setShowLedger] = useState(false)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {

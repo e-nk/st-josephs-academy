@@ -161,6 +161,8 @@ export default function ReportsPage() {
 		switch (status) {
 			case 'PAID_FULL':
 				return <Badge className="bg-green-100 text-green-800">Paid Full</Badge>
+			case 'OVERPAID':
+				return <Badge className="bg-purple-100 text-purple-800">Has Credit</Badge>
 			case 'PARTIAL':
 				return <Badge variant="secondary">Partial</Badge>
 			case 'UNPAID':

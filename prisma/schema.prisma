@@ -32,6 +32,7 @@ model Student {
   payments          Payment[]
   feeAssignments    FeeAssignment[]
 	credits           StudentCredit[]
+	ledger            StudentLedger[]
   
   @@map("students")
 }
@@ -221,4 +222,32 @@ enum UserRole {
   ADMIN
   DIRECTOR
   SUPER_ADMIN
+}
+
+model StudentLedger {
+  id              String   @id @default(cuid())
+  studentId       String
+  transactionType LedgerTransactionType
+  description     String   // Human readable description
+  referenceId     String?  // ID of related payment/fee assignment
+  amount          Decimal  @db.Decimal(10, 2) // Positive for payments, negative for fees
+  runningBalance  Decimal  @db.Decimal(10, 2) // Balance after this transaction
+  transactionDate DateTime @default(now())
+  academicYear    Int?     // Which academic year this relates to
+  term            String?  // Which term this relates to
+  createdAt       DateTime @default(now())
+  
+  // Relations
+  student         Student  @relation(fields: [studentId], references: [id])
+  
+  @@map("student_ledger")
+  @@index([studentId, transactionDate])
+}
+
+enum LedgerTransactionType {
+  FEE_CHARGE      // New fee assigned (negative amount)
+  PAYMENT         // Payment received (positive amount)
+  CREDIT_APPLIED  // Credit used for fee payment (positive amount)
+  CREDIT_CREATED  // Overpayment credit created (positive amount)
+  ADJUSTMENT      // Manual adjustment by admin
 }

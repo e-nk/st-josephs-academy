@@ -31,6 +31,10 @@ export async function GET(
             }
           }
         },
+        // @ts-ignore - Prisma type issue
+        credits: {
+          where: { isActive: true, remainingAmount: { gt: 0 } }
+        },
         payments: {
           where: { status: 'CONFIRMED' },
           orderBy: { confirmedAt: 'desc' }
@@ -46,7 +50,15 @@ export async function GET(
     const classReport = students.map(student => {
       const totalDue = student.feeAssignments.reduce((sum, assignment) => sum + Number(assignment.amountDue), 0)
       const totalPaid = student.feeAssignments.reduce((sum, assignment) => sum + Number(assignment.amountPaid), 0)
-      const totalBalance = student.feeAssignments.reduce((sum, assignment) => sum + Number(assignment.balance), 0)
+      const totalOutstanding = student.feeAssignments.reduce((sum, assignment) => sum + Number(assignment.balance), 0)
+      const totalCredits = student.credits.reduce((sum: number, credit: any) => sum + Number(credit.remainingAmount), 0)
+      const netBalance = totalOutstanding - totalCredits
+      
+      // Determine payment status based on net balance
+      let paymentStatus = 'UNPAID'
+      if (netBalance === 0) paymentStatus = 'PAID_FULL'
+      else if (netBalance < 0) paymentStatus = 'OVERPAID' // Has credit
+      else if (totalPaid > 0) paymentStatus = 'PARTIAL'
       
       return {
         id: student.id,
@@ -55,7 +67,7 @@ export async function GET(
         lastName: student.lastName,
         middleName: student.middleName,
         class: student.class,
-        status: student.status, // Include student status
+        status: student.status,
         graduationYear: student.graduationYear,
         currentAcademicYear: student.currentAcademicYear,
         notes: student.notes,
@@ -64,8 +76,10 @@ export async function GET(
         parentEmail: student.parentEmail,
         totalDue,
         totalPaid,
-        totalBalance,
-        paymentStatus: totalBalance === 0 ? 'PAID_FULL' : totalBalance < totalDue ? 'PARTIAL' : 'UNPAID',
+        totalBalance: Math.max(0, totalOutstanding), // Outstanding fees only
+        totalCredits, // Available credits
+        netBalance, // Net position (negative = has credit)
+        paymentStatus,
         lastPaymentDate: student.payments[0]?.confirmedAt || null,
         feeBreakdown: student.feeAssignments.map(assignment => ({
           feeName: assignment.feeStructure.name,
@@ -75,6 +89,11 @@ export async function GET(
           term: assignment.feeStructure.term,
           year: assignment.feeStructure.year,
           dueDate: assignment.feeStructure.dueDate
+        })),
+        creditBreakdown: student.credits.map((credit: any) => ({
+          amount: Number(credit.remainingAmount),
+          source: credit.source,
+          createdAt: credit.createdAt
         })),
         paymentHistory: student.payments.map(payment => ({
           id: payment.id,
