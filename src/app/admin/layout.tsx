@@ -50,12 +50,13 @@ export default function AdminLayout({
   }
 
   const navigation = [
-  { name: 'Dashboard', href: '/admin', current: pathname === '/admin' },
-  { name: 'Students', href: '/admin/students', current: pathname === '/admin/students' },
-  { name: 'Fee Structure', href: '/admin/fees', current: pathname === '/admin/fees' },
-  { name: 'Payments', href: '/admin/payments', current: pathname === '/admin/payments' },
-  { name: 'Reports', href: '/admin/reports', current: pathname === '/admin/reports' },
-  { name: 'Test Payment', href: '/admin/test-payment', current: pathname === '/admin/test-payment' },
+		{ name: 'Dashboard', href: '/admin', current: pathname === '/admin' },
+		{ name: 'Students', href: '/admin/students', current: pathname === '/admin/students' },
+		{ name: 'Fee Structure', href: '/admin/fees', current: pathname === '/admin/fees' },
+		{ name: 'Payments', href: '/admin/payments', current: pathname === '/admin/payments' },
+		{ name: 'Unmatched Payments', href: '/admin/unmatched-payments', current: pathname === '/admin/unmatched-payments' }, // ADD THIS LINE
+		{ name: 'Reports', href: '/admin/reports', current: pathname === '/admin/reports' },
+		{ name: 'Test Payment', href: '/admin/test-payment', current: pathname === '/admin/test-payment' },
 	]
 
   return (
